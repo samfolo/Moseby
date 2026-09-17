@@ -4,8 +4,11 @@ Moseby is a lightweight experiment in proactivity for resort scheduling.
 This document records the current thinking. It is a draft, not a finished
 database schema. Open questions are left open so we can work through them.
 
-There is now an executable [SQLite draft](../schema/draft.sql) for the first
-tables. Its [guide](../schema/README.md) lists the draft choices and missing rules.
+The executable [SQLite draft](../schema/draft.sql) captures an earlier pass.
+It has not yet been updated for the draft/confirmed booking split, party
+membership, party details, hotel records, or versioned shared prices below.
+These notes are the current design discussion; they do not make every open
+question a settled schema decision.
 
 ## Who uses Moseby?
 
@@ -27,75 +30,111 @@ It is not owned by the staff member who took the booking.
 
 ## Staff
 
-A staff member needs:
+Use `hotel_staff_members` as the current table name. A staff member needs:
 
 - A unique staff ID for the application.
-- A human-readable staff code, such as a badge number or a code used elsewhere.
-- First name and last name.
-- An optional title, such as Mr or Mrs.
+- A human-readable staff code, possibly ten uppercase hexadecimal characters.
+- First name and last name, with a proposed limit of 2,048 characters each.
+- An optional freeform title.
+- A role, initially concierge.
 
-These are the only staff details proposed for this exercise. Login and account
-management have not been designed yet.
+The code format need not have a database format constraint. Its uniqueness
+scope remains to be settled now that hotels are explicit. Login, account
+management, and exact audit links have not been designed yet.
 
-## Reservations and parties
+## Hotels
 
-A reservation records a stay, including its arrival and departure dates.
-The current proposal is that each reservation has a new party with its own ID.
+Keep a lightweight hotel record with an ID, name, and address. Address lines,
+city, and postcode were proposed. A country code was suggested; the exact
+address format is still open. No structure above the hotel is needed now.
 
-A party is the group attending under that reservation. Booking again creates
-a new party, even if exactly the same guests return. Two separate reservations
-for consecutive stays also have separate parties.
+## Drafts, holds, and confirmed bookings
 
-A party:
+The latest direction separates a draft booking from a confirmed booking.
+The draft covers preparation and awaiting confirmation. A booking record is
+created already confirmed. This replaces the earlier proposal to put
+`in_progress` and `awaiting_confirmation` on the confirmed booking itself.
 
-- Has a unique party ID.
-- Belongs to a hotel.
-- Contains one or more guests.
-- Has a point of contact, linked to a guest record.
+The draft is the proposed arrangement. A hold temporarily secures capacity for
+that arrangement. They are different concepts; their exact tables and links
+are not settled.
 
-Use primary guest for the guest responsible for paying for the booking.
-The booking references that guest by ID. We initially considered the name
-cardholder. Whether a separate point of contact is needed remains open.
+The accepted term is **consumed** when a hold is used to confirm a booking.
+Released and expired describe the other proposed ways for a hold to end.
+Its expiry deadline is separate from the check-in and checkout dates of the
+rooms being held. One hold per room versus one hold for a set of rooms remains
+open.
 
-The bookings table has an ID, a human-readable party name, an immutable creation
-time, a status, and a primary guest reference. It has no owning staff member.
+Proposed correctness requirements: confirmation must not briefly release the
+capacity while converting the hold into reservations; an expired hold must
+stop blocking availability even if cleanup has not run. An expired or already
+consumed hold cannot be used again. Enforcement will be designed with the DDL
+and transaction rules.
 
-Proposed booking statuses are in progress, awaiting confirmation, awaiting
-payment, settled, cancelled, completed, error, and under review. Settled was
-suggested as code 3 and cancelled as code 4; the other codes are not settled.
-The first SQL draft uses text labels so it does not invent the remaining codes.
+A confirmed booking has:
 
-The intent is that a booking awaiting payment is already locked in. Amendments
-may put it under review. We still need to define the transitions and what each
-state means for room availability. The payment provider's own lifecycle is
-outside this exercise.
+- Booking ID.
+- Hotel ID.
+- Human-readable `name`.
+- Immutable creation timestamp.
+- Current status, with an append-only history as the intended direction.
+- Freeform cancellation reason when relevant.
 
-The proposal is to make parties immutable. We still need to define what that
-means if someone joins or leaves the group, or a staff member corrects a mistake.
+There is no primary guest reference and no owning staff member. Confirmed
+replaces settled; under revision replaces under review. Confirmed can become
+cancelled, completed, or under revision. The error state is still being
+considered. The full transition rules are not settled after the draft split.
 
-We have not decided how much separate information belongs on the reservation
-and the party. We also have not decided whether an explicit hotel or location
-reference is needed for the first version. Multiple locations remain a possible
-future concern.
+Before this split, awaiting confirmation held capacity, in progress did not,
+and under revision retained an existing allocation. We need to carry those
+intentions into the draft/hold design. In particular, rejection or expiry of
+an amendment must not accidentally erase the original confirmed stay.
+
+Open questions:
+
+- Does a draft have explicit preparation and awaiting-confirmation states, or
+  is readiness represented through its hold and other information?
+- How do a party and its guests exist before the confirmed booking does?
+- How does an amendment draft reference the existing booking and confirmed
+  agreement? Which changes take effect only after approval?
+- Does history contain full booking snapshots or individual changes?
+- What does error mean for a booking and its reserved capacity? Keeping a
+  failed operation separate from the last valid booking state is a proposal.
+
+Payment collection and the distinction between booking contact, guest, and
+payer remain open. The payment provider's internal lifecycle is outside scope.
+
+## Parties
+
+Keep parties separate from bookings even though the intended relationship is
+one-to-one. A party has its own ID, a booking association, and one or more
+guests. The booking has the hotel association. A return visit creates a new
+party and new guest records, even for the same people.
+
+Guests reference the party; they do not also need a direct booking reference.
+The party's association before confirmation is unresolved because drafts now
+exist before bookings. We have not chosen a nullable link or another structure.
+
+The earlier proposal to make parties immutable still needs reconciliation with
+membership changes and corrections.
 
 ## Guests
 
-A guest represents a person attending one booking. A return visit creates a
+A guest represents a person in one party for one stay. A return visit creates a
 new guest record with a new ID. We will not try to recognise the same person
 across separate stays. This replaces the earlier idea of reusing guest records.
 
 Proposed details:
 
 - Unique guest ID.
-- The booking they belong to.
+- Party ID.
 - First name and last name.
 - Optional preferred name.
 - Age, because some activities may have age restrictions.
 - Dietary requirements, as freeform text.
-- Other accommodations, as freeform text.
 
-Agents can reason over the freeform requirements and accommodations. We are not
-designing a structured classification for them now.
+Dietary requirements stay on the individual guest. General accommodations move
+to party details below. We are not creating a dietary taxonomy now.
 
 Identity documents and copies are outside the model. Comparing ages across
 visits is also outside the current scope, given the decision to keep visits
@@ -104,28 +143,73 @@ separate.
 Discounts, special treats, bans, and missing-person reports were raised as things
 staff might do. They are not being added as guest properties or workflows now.
 
-## Memory during a booking
+## Party details and referenced guests
 
-A possible later feature is a memory store attached to a booking. It could record
-comments such as Alice enjoying a particular item, so staff can look for a way
-to offer it again during the stay.
+Party details are now part of the intended design, rather than only a possible
+future memory feature. They can contain general accommodations, observations,
+or information about the party during its stay.
 
-This is a stretch goal. The storage and retrieval approach has not been chosen,
-and it does not imply matching guests across future bookings.
+Proposed properties:
+
+- Detail ID.
+- Party ID.
+- Original freeform detail text.
+- A list of referenced guest IDs.
+
+Keep one detail with a list of IDs rather than duplicating the detail for each
+guest. The storage format of the list is not chosen. Every referenced guest
+must belong to the party; application validation will check this.
+
+The selected experiment is to call **Jev** when the API adds a party detail.
+Give it the text and candidate guests from that party, with their IDs and
+relevant identifying context. It proposes the referenced IDs; ordinary code
+checks their membership. This is the intended integration, not a verified API
+contract or an implemented feature.
+
+A restricted candidate list prevents accepting invented or out-of-party IDs,
+but does not establish that a valid ID is the right person. Two guests called
+Dan can still be ambiguous. Abstaining or requesting clarification is the
+recommended behaviour; the exact output and API handling remain open.
+
+Also open: distinguishing no guest reference from an unresolved reference,
+what happens if classification fails, correction of generated references, and
+whether source, author, and timestamps are recorded on details. Inferred
+references should not silently rewrite dietary requirements or other guest
+facts. How details relate to those facts remains to be designed.
+
+Retrieval remains lexical for now. Cross-visit memory and automatic
+personalisation from these details are not implied by recording them.
 
 ## Rooms and allocations
 
 A room is a physical room in the hotel. Proposed details include:
 
 - A unique room ID.
+- Hotel association.
 - A room number that staff and guests recognise.
+- Operational status, including a way to mark the room out of service.
 - A description.
 - Number of beds and number of bathrooms, as separate columns.
-- Room category: twin, master, or presidential.
+- Room category; the earlier twin/master/presidential list is being reconsidered
+  because it mixes bed arrangement and room class.
+- A possible separate tier, such as VIP; its meaning is not settled.
+- Occupancy capacity, separate from the number of beds.
+- Shared price ID, following the pricing direction below.
 
 Room numbers are human-readable labels that can be printed on passes. They
 are separate from the room's unique ID. The description can explain the room
 to staff and guests, including its features and appeal.
+
+Rooms are manually curated. Operational status is distinct from whether a room
+is reserved for particular dates. Handling existing reservations when a room
+goes out of service remains open.
+
+The proposed occupancy rule is that the rooms reserved for a party provide
+enough total capacity for its guests throughout the stay. A single guest may
+reserve a larger room or several rooms. Maximum occupants per room was suggested
+as sufficient; minimum capacity, exact fields, and when to enforce this check
+remain open. We still do not assign guests to rooms or infer guest count from
+the number of keys issued.
 
 Use room reservations for the rooms attached to a booking. Each has a reservation
 ID, booking ID, room ID, agreed check-in and check-out times, and a status.
@@ -136,10 +220,13 @@ decide who uses each room and can swap without updating guest-room assignments.
 Keys still need their own validity tracking. Requests such as breakfast delivery
 can identify a destination room without creating a permanent guest-room link.
 
-The proposed room reservation history is append-only. Extending a stay adds
+The proposed room reservation history is append-only. Its revision number is
+separate from any booking revision number. Extending a stay adds
 a revision under the same reservation ID with a later checkout time. Removing
 a room from a booking adds a revision with a changed status. The latest revision
-is the current state. Adding another room creates a separate reservation.
+is the current state in the existing SQL draft. With proposed amendments, we
+must distinguish the latest accepted reservation from an unconfirmed proposal.
+Adding another room creates a separate reservation.
 
 Active, cancelled, expired, and voided were discussed as possible room statuses.
 The final set is still open. The SQL draft accepts non-empty labels until that
@@ -156,27 +243,38 @@ Some room categories may be restricted to guests or bookings with a particular
 tier, such as VIP. We have not decided whether that tier belongs to the guest,
 party, or reservation.
 
-Prices should be separate from room descriptions so they can be changed without
-changing the room itself. The proposed starting point is a simple price list:
+The latest direction is a shared price resource with a stable ID and separate
+price versions. A room references the price ID. Several rooms can share it;
+the direction is not to put a room ID on each price record. Equal amounts alone
+do not mean two rooms must share a price resource.
 
-- Price record ID.
-- Room ID.
+The stable price ID does not change when its amount changes. Changing which
+price resource a room uses is a separate operation from publishing a new
+version of its existing price.
+
+Properties discussed for pricing:
+
+- Stable price ID.
+- Version identity or revision number; its exact shape is open.
 - Price per night.
+- Currency.
 - Creation timestamp.
+- Update timestamp was considered; its role on an anchor or version is open.
 
-Pricing room classes or sets of room characteristics was considered. The current
-preference is a simpler list of prices for individual room IDs. Changing a price
-adds a row, and the latest row by creation time supplies the current price.
-The ordering of rows with equal timestamps still needs to be settled.
+The intent is to preserve historical prices, so a price change creates a new
+version rather than overwriting an old amount. How the current version is
+selected is open: a pointer and an ordered revision history were not yet chosen
+between. Do not rely on ambiguous equal creation timestamps.
 
-Effective-from and effective-until dates were considered but are deferred.
-Discounts are also deferred. The money representation and currency have not
-been chosen. We still need to decide how an agreed booking price is retained
-when the price list changes.
+An agreed reservation must retain its agreed price when the shared price changes.
+Referencing the exact price version is the suggested mechanism, not yet a final
+column choice. When a draft locks its quote, and what happens if prices change
+before confirmation, are open.
 
-A room reservation should eventually reference a separate record of the amount
-charged or paid for that room at that time. The exact record and its relationship
-to pricing are still open, so the SQL draft does not invent a payment table.
+Price sharing across hotels was raised; hotel ownership and permissions for a
+shared price remain open. Money representation is also open. Effective date
+ranges, discounts, room charges, credit, and payment accounting are deferred.
+Price versions describe quoted rates, not proof of a charge or payment.
 
 ## Room keys and claiming a room
 
@@ -384,7 +482,9 @@ pending.
 - Remaining activity properties and capacity checks.
 - Party changes and room availability rules.
 - Charges, the responsible payer, and payment collection.
-- Guest comments, their sources, and any interpretation of sentiment.
+- Draft/hold/party links before confirmation and the amendment lifecycle.
+- Party-detail sources, classification ambiguity, and any interpretation of sentiment.
+- Price-version references, quote timing, and price sharing across hotels.
 - The detailed records for the logbook, jobs, grouped bookings, and cancellations.
 - Thread messages, tool calls, pending work, and their links to the audit record.
 - How to supply and validate time context for the agent.
@@ -405,12 +505,11 @@ Use lexical retrieval for search in the first version. Embeddings are deferred.
 ## Stretch goals and experiments
 
 - Checkout alerts from the scheduling machinery.
-- Memory attached to a booking to help staff personalise the stay.
+- Automatic personalisation using party details.
 - Room-key entry and exit events, if a source of those events is added later.
 - Grouping freeform key deactivation reasons.
-- Trying Jev for classification. The project author has API access and describes
-  it as a cheap system-one model. A useful classification task and the API's
-  details still need to be explored.
+- Further Jev classification experiments. Guest-reference classification for
+  new party details is now selected above; API details still need investigation.
 - Code mode: let the agent write code against a small SDK. This comes after
   the other stretch goals and is not part of the initial tool interface.
 

@@ -3,6 +3,12 @@
 [draft.sql](draft.sql) turns the current discussion into SQL that we can read,
 run, and revise. It is not yet a complete booking system or a migration plan.
 
+**This SQL is an earlier design snapshot.** The current [modelling notes](../docs/data-modelling.md)
+now separate draft and confirmed bookings, place guests under parties, remove
+the primary guest reference, add hotels and party details, and introduce shared
+versioned prices. Those changes have not been applied to the SQL. The choices
+below describe the existing draft, not the final model.
+
 ## What is included
 
 | Table or view | Purpose |

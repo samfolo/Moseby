@@ -258,7 +258,9 @@ format version is distinct from a provider API version or model identifier.
 The exact placement of these values is still open.
 
 Choose one affordable chat model. Its exact provider and model ID are not yet
-confirmed. Jev remains a possible separate classification experiment.
+confirmed. Jev is selected for the separate experiment of identifying guest
+references when adding party details. Its API contract is still to be checked;
+see the [domain notes](data-modelling.md#party-details-and-referenced-guests).
 
 Compaction is separate from the state projection: it controls how much history
 is sent to the model. It does not require discarding the durable records.
