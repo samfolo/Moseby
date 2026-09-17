@@ -42,9 +42,9 @@ to accepted user or scheduled input. A run may include several inference calls
 and tool calls, with waits between them. Its exact start and end boundaries
 still need confirmation.
 
-The proposed first version allows one active run per thread and concurrent work
-across different threads. This limit has not yet been accepted as a decision.
-An active run can be waiting; it need not be occupying a worker continuously.
+The first version will allow one active run per thread, with concurrency across
+threads. This is now a decision. A suspended run is still active; it need not
+be occupying a worker continuously.
 
 ## Ordinary execution
 
@@ -102,6 +102,29 @@ A tool result continues the run that requested it. It is not another queued
 user turn. Mid-run steering, such as incorporating a by-the-way message at a
 tool boundary, remains a possible later feature.
 
+## Side questions and helper inference
+
+A side question is different from steering the active run. For example,
+[Claude Code's documented /btw behaviour](https://code.claude.com/docs/en/interactive-mode#side-questions-with-btw)
+answers from existing conversation context, without tools, independently of
+the main turn. It excludes the reply still being written and does not add the
+question or answer to the main conversation history.
+
+An analogous design could make a separate inference request against a fixed
+snapshot while keeping only one run responsible for advancing the main thread.
+This is for understanding the architecture, not a feature being added now.
+Open concerns include stale context, unclear cancellation targets, and users
+assuming a side instruction has changed the main task when it has not.
+
+Thread-title generation is another proposed helper inference operation. It
+does not require a new chat thread or a tool-calling loop. It can use the same
+configured model. A separate model and a separate HTTP endpoint are not decided.
+
+A generated title is model output, unlike the deterministic runtime projection.
+If it is adopted, record the resulting title so the projection can be rebuilt
+without running inference again. A late automatic title must not overwrite a
+staff member's newer title edit. The exact event and version checks remain open.
+
 ## Proposed projection fields
 
 The other implementation includes fields worth considering here:
@@ -138,6 +161,17 @@ Thread `wake_at` could handle a timed continuation. It does not by itself
 describe recurring schedules, independent actions, or several future actions
 targeting the same thread. Those schedules need their own representation.
 
+One possible implementation is a delayed work item: persist the action now but
+make it eligible only when its due time arrives. A dispatcher then delivers it
+to the application handler or thread input queue. If the destination thread
+already has an active run, its conversational input waits. A recurring schedule
+can create a separate work item for each occurrence.
+
+This explains the scheduler's responsibility without choosing a job queue or
+requiring a separate service. The scheduler determines when work is due; the
+worker claims and executes eligible work. Those responsibilities can initially
+live in the same application process.
+
 Schedule discovery and editing should be exposed as tools. The cron dialect,
 validation library, scheduler library, and process arrangement are not chosen.
 An application-level scheduler is preferred over custom database hooks.
@@ -149,6 +183,24 @@ erase that history.
 Skipping scheduled occurrences missed during downtime is an acceptable initial
 trade-off. This is separate from keeping schedule definitions and recovering
 work already accepted before shutdown. The exact restart rules remain open.
+
+## Waiting on external work
+
+A timed wake can be used to check whether an external job has finished, then
+set another wake if it has not. That check can run in ordinary application code;
+it does not need to invoke the model on every polling interval. Result delivery
+through a callback is another possible way to make the continuation runnable.
+
+Automatic waits, polling intervals, and retry timing are runtime concerns. An
+agent-visible operation for intentionally deferring work is still a proposal.
+No generic sleep tool has been approved. Scheduling a later action and suspending
+the current run should remain separate operations if both are exposed.
+
+An important open decision is how long external work affects the conversation.
+The run could stay suspended until its tool result arrives. Alternatively, a
+tool could return a job reference, let the current turn finish, and arrange a
+new input when the job completes. These give different behaviour when staff
+send another message during the wait.
 
 ## Permissions, formats, and model context
 
@@ -179,7 +231,8 @@ long a run waited or why it resumed. The metrics, evaluation approach, and
 libraries are still open. Recording lifecycle events does not commit us to an
 observability platform.
 
-Before designing failure handling, confirm the number of active runs allowed
-per thread and whether an explicit timed sleep resumes the same run. We can
-then work through cancellation, failed tools, retries, and interrupted execution
-using those definitions.
+Before designing failure handling, settle when external work suspends the same
+run and when it completes the turn with a job reference. The remaining modelling
+gaps are the links among runs, their records, pending tool work, and scheduled
+occurrences; the wait reasons that make work eligible; and ownership of a claim.
+No new tables or lifecycle enums have been chosen in this pass.
