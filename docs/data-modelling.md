@@ -334,6 +334,10 @@ succeed, and what cancelling a group means for work already in progress.
 
 ## Threads and the audit record
 
+The developing lifecycle is recorded in [Thread and runtime notes](agent-runtime.md).
+Use thread records for the durable history and threads for its deterministic
+current-state projection. The notes separate decisions from proposed details.
+
 Durable agent threads remain part of the plan. Titles are likely to be useful,
 but a title or booking-type label should not define what the thread is about.
 The user's goal can change during the conversation.
@@ -342,10 +346,9 @@ For example, someone may start by asking for an all-expenses-paid trip and
 later choose a regular booking. The transcript should preserve that change
 of intent. A stale title or category must not override it.
 
-The intended source of conversational context is the transcript. We still
-need to define how it connects to booking records, tool results, and the audit
-record of what actually happened. Thread properties and audit properties have
-not been designed yet.
+Thread records preserve conversational context and execution history. Booking
+and service records establish operational state. Their links and the exact
+thread properties are still being designed.
 
 ## Dates and time context
 
@@ -396,6 +399,8 @@ Plan for two separate boundaries: the application API and the inference or
 agent gateway. Design permissions while working through those interfaces.
 The traditional API comes after the data modelling, followed by the inference
 gateway. Their responsibilities and implementation are still open.
+
+Use lexical retrieval for search in the first version. Embeddings are deferred.
 
 ## Stretch goals and experiments
 
