@@ -189,14 +189,18 @@ on the room would not describe each issued key.
 A lost key should be deactivated, with the loss recorded as the reason.
 Lost is not a separate key status.
 
-An issued key belongs to a booking and does not need an individual guest owner.
-Proposed details are a key ID, an optional human-readable code, an effective-from
-time, an effective-to time, and a deactivation reason when relevant. Keep an
-append-only record. We track issued access, not the stock of blank physical cards.
+An issued key opens one specific room. It references that room, not the whole
+booking, and does not need an individual guest owner. This replaces the earlier
+proposal to attach keys to bookings. Staff can issue another key for the same
+room without changing the booking or charging for it.
+
+Proposed details are a key ID, a room ID, an optional human-readable code, an
+effective-from time, an effective-to time, and a deactivation reason when
+relevant. Keep an append-only record. We track issued access, not the stock
+of blank physical cards.
 
 Active and inactive were proposed as statuses. Whether those are stored or
-derived from the validity period remains open. The relationship between a key
-and the rooms it opens also needs to be settled.
+derived from the validity period remains open.
 
 A freeform deactivation reason was the earlier preference. A fixed list has now
 been raised again, with examples including stolen, checkout, damaged, cancelled,
@@ -211,6 +215,11 @@ The key journey is:
 We have not yet chosen the final key properties or how they link to room access.
 Tracking which individual guest sleeps in a room is outside the model.
 Integration with physical door locks is not specified.
+
+Entry and exit taps are a possible later source of information for staff. An
+event could identify a key, its room, the time, and the direction of travel.
+This would show when a key was used. It would not establish which individual
+carried it or prove that a particular guest is currently on the premises.
 
 ## Arrival and departure logbook
 
@@ -228,12 +237,30 @@ No scheduler or cron implementation has been selected.
 
 ## Activity schedules and the calendar
 
-Start with a simple calendar using start and end times. The first activities
-remain tennis, pottery, and guided tours. Their capacity and participant rules
-still need properties and checks.
+Separate venues from the activities held at them. A venue has an ID, a name,
+activity-type information, address information, and a capacity. Minimum and
+maximum booking sizes belong to the activity, not the venue.
 
-An activity has an ID, a type, and minimum and maximum booking sizes. Total
-capacity and the definition of a bookable slot still need to be worked through.
+Activities are manually curated. A scheduled activity has an ID, title, type,
+venue, start time, end time, and its own capacity. For example, a venue might
+hold 2,000 people while a rooftop event is limited to 600. The activity capacity
+must fit within the venue capacity. Whether activities can share a venue at the
+same time and how their combined capacity is handled remain open.
+
+The first activities remain tennis, pottery, and guided tours. The current
+direction is to make each dated activity bookable, such as pottery on Thursday
+at 14:00. We have not added a separate recurring-activity template model.
+
+Group sizing remains open. Minimum and maximum booking sizes were proposed,
+along with a step or a recommendation in the description. The earlier strict
+rule that tennis must have exactly two or four participants is being reconsidered.
+Solo guests might be allowed to book with an explanation that finding a partner
+is not guaranteed. We have not committed to that policy yet.
+
+For the next discussion, distinguish the number of guests submitted in one
+booking request from total attendance at the activity. A minimum of four per
+request would have a different effect from needing four attendees across all
+requests before an activity can run.
 
 Activity reservations are separate from activities. Each logical reservation
 represents one guest attending a slot under a booking. Proposed details are:
@@ -244,6 +271,14 @@ represents one guest attending a slot under a booking. Proposed details are:
 - Activity and slot reference.
 - Status: active or cancelled.
 - Cancellation reason when cancelled, subject to the constraint discussion.
+
+An individual guest's planned itinerary can be derived from their activity
+reservations and the scheduled activities. Expose that query through the
+repository layer. This itinerary does not record proof of attendance.
+
+Activity reservation tariffs belong in a separate price table, following the
+same broad separation as room pricing. Their exact fields are still open.
+Discounts can wait.
 
 Booking several guests creates separate reservations. Cancellation adds a new
 row to the history of the affected reservation. Attendance tracking is outside
@@ -366,6 +401,7 @@ gateway. Their responsibilities and implementation are still open.
 
 - Checkout alerts from the scheduling machinery.
 - Memory attached to a booking to help staff personalise the stay.
+- Room-key entry and exit events, if a source of those events is added later.
 - Grouping freeform key deactivation reasons.
 - Trying Jev for classification. The project author has API access and describes
   it as a cheap system-one model. A useful classification task and the API's
