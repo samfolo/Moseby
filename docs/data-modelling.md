@@ -4,6 +4,9 @@ Moseby is a lightweight experiment in proactivity for resort scheduling.
 This document records the current thinking. It is a draft, not a finished
 database schema. Open questions are left open so we can work through them.
 
+There is now an executable [SQLite draft](../schema/draft.sql) for the first
+tables. Its [guide](../schema/README.md) lists the draft choices and missing rules.
+
 ## Who uses Moseby?
 
 Hotel staff and concierges use the application. They can see operational
@@ -50,9 +53,22 @@ A party:
 - Contains one or more guests.
 - Has a point of contact, linked to a guest record.
 
-The point of contact is the person who makes the reservation. We initially
-considered calling them the cardholder. Whether the contact and payer must be
-the same person is still open.
+Use primary guest for the guest responsible for paying for the booking.
+The booking references that guest by ID. We initially considered the name
+cardholder. Whether a separate point of contact is needed remains open.
+
+The bookings table has an ID, a human-readable party name, an immutable creation
+time, a status, and a primary guest reference. It has no owning staff member.
+
+Proposed booking statuses are in progress, awaiting confirmation, awaiting
+payment, settled, cancelled, completed, error, and under review. Settled was
+suggested as code 3 and cancelled as code 4; the other codes are not settled.
+The first SQL draft uses text labels so it does not invent the remaining codes.
+
+The intent is that a booking awaiting payment is already locked in. Amendments
+may put it under review. We still need to define the transitions and what each
+state means for room availability. The payment provider's own lifecycle is
+outside this exercise.
 
 The proposal is to make parties immutable. We still need to define what that
 means if someone joins or leaves the group, or a staff member corrects a mistake.
@@ -91,12 +107,31 @@ A room is a physical room in the hotel. Proposed details include:
 - A unique room ID.
 - A room number that staff and guests recognise.
 - A description.
-- Bed details and number of bathrooms.
-- Room category, such as twin, master, or presidential.
+- Number of beds and number of bathrooms, as separate columns.
+- Room category: twin, master, or presidential.
 
-A room allocation connects one room to one party for a stay. It also records
-which guests from that party use the room. A party can have several room
-allocations, and a room allocation can contain several guests.
+Room numbers are human-readable labels that can be printed on passes. They
+are separate from the room's unique ID. The description can explain the room
+to staff and guests, including its features and appeal.
+
+Use room reservations for the rooms attached to a booking. Each has a reservation
+ID, booking ID, room ID, agreed check-in and check-out times, and a status.
+A booking can reserve several rooms.
+
+We will not assign individual guests to rooms in the database. The party can
+decide who uses each room and can swap without updating guest-room assignments.
+Keys still need their own validity tracking. Requests such as breakfast delivery
+can identify a destination room without creating a permanent guest-room link.
+
+The proposed room reservation history is append-only. Extending a stay adds
+a revision under the same reservation ID with a later checkout time. Removing
+a room from a booking adds a revision with a changed status. The latest revision
+is the current state. Adding another room creates a separate reservation.
+
+Active, cancelled, expired, and voided were discussed as possible room statuses.
+The final set is still open. The SQL draft accepts non-empty labels until that
+choice is settled. Whether expiry should be a stored status or derived from
+the dates is also open.
 
 For this experiment, separate parties do not share a room at the same time.
 The same room can be allocated to other parties on other dates. The exact date
@@ -119,6 +154,10 @@ Effective-from and effective-until dates were considered but are deferred.
 Discounts are also deferred. The money representation and currency have not
 been chosen. We still need to decide how an agreed booking price is retained
 when the price list changes.
+
+A room reservation should eventually reference a separate record of the amount
+charged or paid for that room at that time. The exact record and its relationship
+to pricing are still open, so the SQL draft does not invent a payment table.
 
 ## Room keys and claiming a room
 
@@ -143,8 +182,9 @@ The key journey is:
 2. A guest may report a particular key lost.
 3. Staff deactivate that key and can issue a replacement.
 
-We have not yet chosen the key properties or how keys relate to an allocation
-and individual guests. Integration with physical door locks is not specified.
+We have not yet chosen the key properties or how they link to a room reservation.
+Tracking which individual guest sleeps in a room is outside the model.
+Integration with physical door locks is not specified.
 
 ## Arrival and departure logbook
 
@@ -273,8 +313,9 @@ gateway. Their responsibilities and implementation are still open.
 - Checkout alerts from the scheduling machinery.
 - Reasoning about inconsistent ages across returning visits.
 - Grouping freeform key deactivation reasons.
-- Trying the API referred to as GEP in the discussion for classification.
-  Its exact identity and a useful classification task still need to be confirmed.
+- Trying Jev for classification. The project author has API access and describes
+  it as a cheap system-one model. A useful classification task and the API's
+  details still need to be explored.
 - Code mode: let the agent write code against a small SDK. This comes after
   the other stretch goals and is not part of the initial tool interface.
 
