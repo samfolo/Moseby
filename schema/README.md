@@ -14,6 +14,11 @@ run, and revise. It is not yet a complete booking system or a migration plan.
 | `room_reservations` | The history of each room reserved under a booking |
 | `current_room_reservations` | The latest revision of each room reservation |
 
+The latest guest, price, key, and activity proposals are recorded in the
+[design notes](../docs/data-modelling.md). They have not been added to this SQL
+draft yet. In particular, the guest table still needs its booking link,
+preferred name, dietary requirements, and other accommodations.
+
 Guests are not assigned to rooms. A service request can name a destination room
 without establishing a permanent guest-to-room relationship.
 
@@ -31,7 +36,7 @@ without establishing a permanent guest-to-room relationship.
 - The booking status check lists proposed labels. It does not define which
   transitions are allowed or settle the meaning of each label.
 - The room-reservation status list remains open. For now, the SQL requires only
-  a non-empty label. Tests use active and cancelled as examples.
+  a non-empty label.
 - A room reservation keeps the same booking and room across its revisions.
   A different room gets a new reservation ID.
 
@@ -45,6 +50,9 @@ adds revision 3 with a changed status. Both earlier rows remain available.
 The current view selects revision 3, even if the timestamps on the revisions
 are equal. The revision number determines their order.
 
+This is an ordinary view: a named query. It does not store a separate copy of
+the results or need to be refreshed like a materialised view.
+
 Triggers reject updates, deletes, replacement of existing revisions, and gaps
 in revision numbers. They also keep the reservation tied to its original
 booking and room. Choosing and retrying revision writes in the application
@@ -55,25 +63,15 @@ still needs to be designed.
 The schema does not yet prevent overlapping room reservations or coordinate a
 booking cancellation with all its room reservations. Status transition rules,
 concurrent booking behaviour, and the effect of booking status on availability
-are still open. Passing these tests does not establish those guarantees.
+are still open.
 
 Price records, payment references, party membership, keys, the arrival logbook,
 activities, jobs, permissions, and agent threads still need their own passes.
 The payment provider's internal lifecycle is outside this exercise.
 
-## Run the checks
+## Inspect the draft
 
-From the repository root:
-
-```sh
-python3 -B -m unittest discover -s tests -v
-```
-
-These checks use an in-memory database and Python's standard library. The SQLite
-version bundled with Python must be at least 3.37. No Python version or package
-manager is pinned by this draft.
-
-To inspect the SQL directly with the SQLite CLI:
+From the repository root, using SQLite 3.37 or later:
 
 ```sh
 sqlite3 :memory: '.read schema/draft.sql' '.schema'

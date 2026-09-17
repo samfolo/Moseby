@@ -80,25 +80,38 @@ future concern.
 
 ## Guests
 
-A guest represents a person. The same guest can return for several stays and
-therefore belong to several parties over time.
+A guest represents a person attending one booking. A return visit creates a
+new guest record with a new ID. We will not try to recognise the same person
+across separate stays. This replaces the earlier idea of reusing guest records.
 
 Proposed details:
 
 - Unique guest ID.
+- The booking they belong to.
 - First name and last name.
+- Optional preferred name.
 - Age, because some activities may have age restrictions.
+- Dietary requirements, as freeform text.
+- Other accommodations, as freeform text.
 
-Age is the current proposal. Comparing ages across returning visits is outside
-the initial scope. Detecting an age that does not match the time since a prior
-visit is a possible stretch goal.
+Agents can reason over the freeform requirements and accommodations. We are not
+designing a structured classification for them now.
 
-Identity documents or identity verification details were considered, but are
-not a requirement at this point. No decision has been made to store document
-copies or identifiers.
+Identity documents and copies are outside the model. Comparing ages across
+visits is also outside the current scope, given the decision to keep visits
+separate.
 
-Individual preferences, dietary requirements, and other accommodations are
-part of the wider guest journey. Their properties will be discussed separately.
+Discounts, special treats, bans, and missing-person reports were raised as things
+staff might do. They are not being added as guest properties or workflows now.
+
+## Memory during a booking
+
+A possible later feature is a memory store attached to a booking. It could record
+comments such as Alice enjoying a particular item, so staff can look for a way
+to offer it again during the stay.
+
+This is a stretch goal. The storage and retrieval approach has not been chosen,
+and it does not imply matching guests across future bookings.
 
 ## Rooms and allocations
 
@@ -149,6 +162,12 @@ changing the room itself. The proposed starting point is a simple price list:
 - Price record ID.
 - Room ID.
 - Price per night.
+- Creation timestamp.
+
+Pricing room classes or sets of room characteristics was considered. The current
+preference is a simpler list of prices for individual room IDs. Changing a price
+adds a row, and the latest row by creation time supplies the current price.
+The ordering of rows with equal timestamps still needs to be settled.
 
 Effective-from and effective-until dates were considered but are deferred.
 Discounts are also deferred. The money representation and currency have not
@@ -170,11 +189,18 @@ on the room would not describe each issued key.
 A lost key should be deactivated, with the loss recorded as the reason.
 Lost is not a separate key status.
 
-The current preference is a freeform deactivation reason. A fixed list of
-reasons with an other option was considered, but would need to be maintained
-as new reasons arise. Grouping freeform reasons through semantic analysis is
-a possible later addition. The exact active and inactive status names are
-still to be chosen.
+An issued key belongs to a booking and does not need an individual guest owner.
+Proposed details are a key ID, an optional human-readable code, an effective-from
+time, an effective-to time, and a deactivation reason when relevant. Keep an
+append-only record. We track issued access, not the stock of blank physical cards.
+
+Active and inactive were proposed as statuses. Whether those are stored or
+derived from the validity period remains open. The relationship between a key
+and the rooms it opens also needs to be settled.
+
+A freeform deactivation reason was the earlier preference. A fixed list has now
+been raised again, with examples including stolen, checkout, damaged, cancelled,
+and returned. The choice between text and an enum is open.
 
 The key journey is:
 
@@ -182,7 +208,7 @@ The key journey is:
 2. A guest may report a particular key lost.
 3. Staff deactivate that key and can issue a replacement.
 
-We have not yet chosen the key properties or how they link to a room reservation.
+We have not yet chosen the final key properties or how they link to room access.
 Tracking which individual guest sleeps in a room is outside the model.
 Integration with physical door locks is not specified.
 
@@ -205,6 +231,34 @@ No scheduler or cron implementation has been selected.
 Start with a simple calendar using start and end times. The first activities
 remain tennis, pottery, and guided tours. Their capacity and participant rules
 still need properties and checks.
+
+An activity has an ID, a type, and minimum and maximum booking sizes. Total
+capacity and the definition of a bookable slot still need to be worked through.
+
+Activity reservations are separate from activities. Each logical reservation
+represents one guest attending a slot under a booking. Proposed details are:
+
+- Reservation ID.
+- Booking ID.
+- Guest ID.
+- Activity and slot reference.
+- Status: active or cancelled.
+- Cancellation reason when cancelled, subject to the constraint discussion.
+
+Booking several guests creates separate reservations. Cancellation adds a new
+row to the history of the affected reservation. Attendance tracking is outside
+the scope; active does not mean that the guest actually turned up.
+
+Cancelling the parent booking must invalidate its activity reservations. The
+mechanism is still open: we have not chosen how that interacts with the separate
+reservation histories.
+
+The preference is to handle activity availability and capacity checks in the
+application layer. The way to check and commit safely together remains open.
+
+A cancellation reason could remain in the conversation, but the latest proposal
+is to keep it on the cancellation record and require it when the status is
+cancelled. We still need to settle whether active records must have no reason.
 
 Use an existing calendar library for the interface. Building a calendar renderer
 is not a goal of the exercise. We need to understand the data it expects before
@@ -311,7 +365,7 @@ gateway. Their responsibilities and implementation are still open.
 ## Stretch goals and experiments
 
 - Checkout alerts from the scheduling machinery.
-- Reasoning about inconsistent ages across returning visits.
+- Memory attached to a booking to help staff personalise the stay.
 - Grouping freeform key deactivation reasons.
 - Trying Jev for classification. The project author has API access and describes
   it as a cheap system-one model. A useful classification task and the API's
@@ -328,3 +382,11 @@ still open.
 We will work through the design in small steps. Documentation should use plain
 language and make the reasoning easy to follow. Commits should be small, with
 short conventional commit messages, so the history shows how the design develops.
+
+Keep the current focus on data modelling. Record new proposals in the notes
+before implementing them. The existing room-reservation triggers and view are
+accepted. Tests and further implementation should wait until requested.
+
+The intended application design uses a repository layer for database access.
+The API and agent will use its operations rather than execute arbitrary SQL.
+The existing triggers add checks at the database boundary as well.

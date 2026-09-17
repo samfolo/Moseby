@@ -15,8 +15,9 @@ CREATE TABLE staff (
     title TEXT
 ) STRICT;
 
--- Returning guests can be referenced by more than one booking.
 -- This minimal guest record supports the primary guest reference below.
+-- The latest design uses a new guest record for each stay. Its booking link
+-- and additional guest fields are recorded in the notes, pending the next pass.
 CREATE TABLE guests (
     id TEXT PRIMARY KEY,
     first_name TEXT NOT NULL,
