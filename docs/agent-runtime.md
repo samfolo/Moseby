@@ -68,23 +68,25 @@ uses the fields supported by that provider. Enforcement stays in application
 code. The model receives complete tool results on a later inference request;
 it does not need an open connection while a tool is running.
 
-## Suspension and claimable work
+## Waiting and work that is ready to run
 
-Suspension means there is no agent continuation ready to execute. It does not
-mean that a worker must remain occupied waiting.
+Suspension means the agent has paused until something lets it continue. A
+worker does not have to remain occupied during the wait.
 
-Different situations can make a continuation runnable:
+Different events can let the run continue:
 
 - Its scheduled wake time arrives.
 - A required tool result is recorded.
 - A control request, such as cancellation, needs handling.
 
+If we adopt steering, new staff input could also end certain waits early.
+
 Waiting for user input after a completed turn is different from a run waiting
 on a tool. A suspended run may also have no known wake time if it is waiting
 for an external result.
 
-Tool work must remain executable while the agent waits for it. Suspending the
-agent continuation must not block the very task that will produce its result.
+Tool work must remain executable while the agent waits for it. Pausing the
+agent must not block the very task that will produce its result.
 Cancellation handling must also remain possible during suspension.
 
 A worker should claim eligible work before executing it. A due timestamp alone
@@ -92,15 +94,20 @@ does not establish that work is ready or that another worker has not claimed it.
 The claim mechanism and the choice between scanning threads and scanning a
 separate work table are still open.
 
-## Queued input
+## Queued input and steering
 
-The current preference is to queue new conversational input when a run is
-already in flight, and handle it on the next turn. This includes scheduled
-input. The queue must preserve the input's source and order.
+The earlier preference was to queue new conversational input while a run was
+working, then handle it on the next turn. This includes scheduled input. The
+queue must preserve where input came from and its order.
 
 A tool result continues the run that requested it. It is not another queued
-user turn. Mid-run steering, such as incorporating a by-the-way message at a
-tool boundary, remains a possible later feature.
+user turn.
+
+We are now considering steering: letting staff give new instructions to the
+current run, particularly while it is waiting. The [Codex steering research](steering.md)
+explains how its loop reads pending input and how certain waits end early.
+Queueing, steering, and stopping are different actions. Their defaults and
+the exact behaviour for Moseby remain open.
 
 ## Side questions and helper inference
 
@@ -189,7 +196,7 @@ work already accepted before shutdown. The exact restart rules remain open.
 A timed wake can be used to check whether an external job has finished, then
 set another wake if it has not. That check can run in ordinary application code;
 it does not need to invoke the model on every polling interval. Result delivery
-through a callback is another possible way to make the continuation runnable.
+through a callback is another possible way to let the run continue.
 
 Automatic waits, polling intervals, and retry timing are runtime concerns. An
 agent-visible operation for intentionally deferring work is still a proposal.
