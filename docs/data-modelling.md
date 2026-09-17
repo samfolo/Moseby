@@ -118,6 +118,13 @@ exist before bookings. We have not chosen a nullable link or another structure.
 The earlier proposal to make parties immutable still needs reconciliation with
 membership changes and corrections.
 
+The latest discussion considered creating parties and guests only on
+confirmation, then raised the need to resume an unfinished checkout. Possible
+approaches were separate draft data or temporary party/guest records retained
+while attached to a live hold or booking. Short retention and periodic cleanup
+were suggested, not selected. Retention duration, resuming an expired draft,
+and deletion rules remain open; no legal-compliance conclusion has been made.
+
 ## Guests
 
 A guest represents a person in one party for one stay. A return visit creates a
@@ -162,9 +169,17 @@ must belong to the party; application validation will check this.
 
 The selected experiment is to call **Jev** when the API adds a party detail.
 Give it the text and candidate guests from that party, with their IDs and
-relevant identifying context. It proposes the referenced IDs; ordinary code
-checks their membership. This is the intended integration, not a verified API
-contract or an implemented feature.
+relevant identifying context. Ordinary code constructs and validates the
+referenced-ID list from its decisions.
+
+The [TypeSafe documentation](https://docs.typesafe.ai/introduction) confirms that
+Jev answers typed questions rather than generating freeform text. A
+[Choice](https://docs.typesafe.ai/primitives/choice) selects one supplied option;
+[Noul](https://docs.typesafe.ai/primitives/noul) evaluates a yes/no proposition
+and returns a probability. Several questions can share one request. For several
+guest references, asking whether each candidate is referenced is one possible
+design to test. A single Choice does not select an arbitrary subset of guests.
+The integration, thresholds, and handling of ambiguous references remain open.
 
 A restricted candidate list prevents accepting invented or out-of-party IDs,
 but does not establish that a valid ID is the right person. Two guests called
@@ -204,6 +219,10 @@ Rooms are manually curated. Operational status is distinct from whether a room
 is reserved for particular dates. Handling existing reservations when a room
 goes out of service remains open.
 
+Room turnover after departure was also raised: cleaning/resetting can delay
+when the room becomes available again. Its status, timing, and relationship to
+reservation dates are not yet designed.
+
 The proposed occupancy rule is that the rooms reserved for a party provide
 enough total capacity for its guests throughout the stay. A single guest may
 reserve a larger room or several rooms. Maximum occupants per room was suggested
@@ -227,6 +246,13 @@ a room from a booking adds a revision with a changed status. The latest revision
 is the current state in the existing SQL draft. With proposed amendments, we
 must distinguish the latest accepted reservation from an unconfirmed proposal.
 Adding another room creates a separate reservation.
+
+An alternative now proposed is to secure a replacement reservation or booking
+before cancelling the original, instead of revising it. The exact scope of
+replacement is open. Replacing an entire booking would also affect party and
+activity relationships; we have not chosen to move or cancel those implicitly.
+In either approach, a failed replacement must leave the original allocation
+intact.
 
 Active, cancelled, expired, and voided were discussed as possible room statuses.
 The final set is still open. The SQL draft accepts non-empty labels until that
@@ -294,15 +320,13 @@ room without changing the booking or charging for it.
 
 Proposed details are a key ID, a room ID, an optional human-readable code, an
 effective-from time, an effective-to time, and a deactivation reason when
-relevant. Keep an append-only record. We track issued access, not the stock
-of blank physical cards.
+relevant. The effective times are independent of room-reservation times because
+keys can be issued or replaced during a stay. The latest choice is a freeform
+deactivation reason and no separate active/inactive status column.
 
-Active and inactive were proposed as statuses. Whether those are stored or
-derived from the validity period remains open.
-
-A freeform deactivation reason was the earlier preference. A fixed list has now
-been raised again, with examples including stolen, checkout, damaged, cancelled,
-and returned. The choice between text and an enum is open.
+Keeping disabled keys is now being questioned, superseding the earlier
+append-only preference. We still need to settle how revocation is represented
+and whether its history is retained. We track issued access, not blank cards.
 
 The key journey is:
 
@@ -319,15 +343,13 @@ event could identify a key, its room, the time, and the direction of travel.
 This would show when a key was used. It would not establish which individual
 carried it or prove that a particular guest is currently on the premises.
 
-## Arrival and departure logbook
+## Arrival and departure logbook: deferred
 
-Keep an append-only record of guests signing in and signing out, including
-the time of each event. Show these actual times alongside the agreed check-in
-and check-out times.
-
-The logbook is a record in the application; it does not need to look like a
-physical book. Its exact relationship to guests, parties, and room allocations
-still needs to be worked through.
+The logbook is now out of scope. Guests can leave without tapping a card, so
+room-entry events do not reliably establish departures or presence at the
+hotel. There is no current source for a complete arrival/departure history.
+Nothing in the initial system should depend on this logbook. Manual arrival
+records and key-use evidence can be reconsidered later as separate features.
 
 Checkout reminders are a possible stretch goal. They would demonstrate that
 the scheduling machinery can trigger an alert as well as schedule activities.
@@ -336,66 +358,101 @@ No scheduler or cron implementation has been selected.
 ## Activity schedules and the calendar
 
 Separate venues from the activities held at them. A venue has an ID, a name,
-activity-type information, address information, and a capacity. Minimum and
-maximum booking sizes belong to the activity, not the venue.
+address information, and a capacity. Remove activity type from venues because
+they can be multipurpose. Minimum and maximum booking sizes belong to the
+activity, not the venue.
 
 Activities are manually curated. A scheduled activity has an ID, title, type,
-venue, start time, end time, and its own capacity. For example, a venue might
-hold 2,000 people while a rooftop event is limited to 600. The activity capacity
+venue, start time, end time, description, and its own capacity. For example,
+a venue might hold 2,000 people while a rooftop event is limited to 600. The activity capacity
 must fit within the venue capacity. Whether activities can share a venue at the
 same time and how their combined capacity is handled remain open.
+
+Activity capacity may be null, meaning no activity-level attendance limit.
+How this interacts with a finite venue capacity remains open; null must not
+accidentally bypass an intended venue limit. Add minimum age. Maximum age is
+not required in the current direction.
 
 The first activities remain tennis, pottery, and guided tours. The current
 direction is to make each dated activity bookable, such as pottery on Thursday
 at 14:00. We have not added a separate recurring-activity template model.
 
-Group sizing remains open. Minimum and maximum booking sizes were proposed,
-along with a step or a recommendation in the description. The earlier strict
-rule that tennis must have exactly two or four participants is being reconsidered.
-Solo guests might be allowed to book with an explanation that finding a partner
-is not guaranteed. We have not committed to that policy yet.
+Keep minimum and maximum booking size. Minimum participants per booking means
+the same thing as minimum booking size. Extra group-size rules, steps, and
+allowed-number lists are out of scope. A minimum total attendance requirement
+for an activity to run has not been requested.
 
-For the next discussion, distinguish the number of guests submitted in one
-booking request from total attendance at the activity. A minimum of four per
-request would have a different effect from needing four attendees across all
-requests before an activity can run.
-
-Activity reservations are separate from activities. Each logical reservation
-represents one guest attending a slot under a booking. Proposed details are:
+Activity reservations are separate from activities. The latest preference is
+to associate them with a party rather than directly with a booking. Proposed
+details are:
 
 - Reservation ID.
-- Booking ID.
-- Guest ID.
+- Party ID.
+- Guest ID under the earlier per-guest design; see the open choice below.
 - Activity and slot reference.
 - Status: active or cancelled.
-- Cancellation reason when cancelled, subject to the constraint discussion.
+- Cancellation reason, required when cancelled.
 
-An individual guest's planned itinerary can be derived from their activity
-reservations and the scheduled activities. Expose that query through the
-repository layer. This itinerary does not record proof of attendance.
+Open choice: retain one logical reservation per guest and aggregate by party,
+or make one party reservation for a quantity of places. Replacing booking ID
+with party ID does not itself require changing the unit of a reservation. The
+quantity-only design would need an answer for individual itineraries, age
+checks, and partial cancellations. No choice has been made yet.
 
-Activity reservation tariffs belong in a separate price table, following the
-same broad separation as room pricing. Their exact fields are still open.
-Discounts can wait.
+If individual guests remain identified on reservations, their planned itinerary
+can be derived from those reservations and the scheduled activities. Expose
+that query through the repository layer. A quantity alone gives a party-level
+itinerary. Neither records proof of attendance.
 
-Booking several guests creates separate reservations. Cancellation adds a new
-row to the history of the affected reservation. Attendance tracking is outside
-the scope; active does not mean that the guest actually turned up.
+Activity tariffs should follow the shared price resource and price-version
+model used for rooms. The pricing unit, placement of the price reference, and
+retention of the agreed version still need defining. Discounts can wait.
 
-Cancelling the parent booking must invalidate its activity reservations. The
-mechanism is still open: we have not chosen how that interacts with the separate
-reservation histories.
+Keep an append-only activity-reservation history, including cancellations and
+possible reactivations. Whether rows are full revisions or individual events
+remains open. Attendance tracking is outside scope; active does not mean that
+the guest actually turned up.
+
+The latest cancellation direction is to retain activity history and include
+parent-booking validity when deciding whether a reservation is effective. This
+avoids inserting a cancellation revision into every activity reservation just
+because the parent booking was cancelled. All availability and operational
+queries must use the same rule. Which booking states qualify is still open.
+
+Restoring a cancelled booking or activity reservation must not silently reclaim
+capacity that has since been reserved elsewhere. Revalidation is required if
+restoration is supported. Historical reports also need the booking state at the
+time being reported, rather than applying today's status to all past activity.
 
 The preference is to handle activity availability and capacity checks in the
-application layer. The way to check and commit safely together remains open.
+application layer. Append-only history does not remove conflicting writes or
+the need to check and commit safely together. SQLite still permits only one
+writer at a time; see its [transaction documentation](https://www.sqlite.org/lang_transaction.html).
+Reactivating a reservation needs the same capacity checks as a new reservation.
 
-A cancellation reason could remain in the conversation, but the latest proposal
-is to keep it on the cancellation record and require it when the status is
-cancelled. We still need to settle whether active records must have no reason.
+Require a reason on an explicit cancellation record. We still need to settle
+whether active records must have no reason. Where a parent cancellation makes
+the activity ineffective, the parent supplies that cancellation history.
+
+For reads, an ordinary view can select the latest full revision per reservation
+if that is the chosen history format. A view names a query; it does not cache
+its results. A separately maintained current-state table is another option,
+updated in the same transaction as history. Neither requires loading the whole
+history into Python for every read. This is a design option, not implemented
+machinery. See [SQLite views](https://www.sqlite.org/lang_createview.html).
 
 Use an existing calendar library for the interface. Building a calendar renderer
 is not a goal of the exercise. We need to understand the data it expects before
 choosing one. No calendar library has been selected.
+
+### Activity change notifications
+
+When a scheduled activity changes, notify the affected guests/parties. Record
+email delivery and an agent-accessible notification operation as work to build.
+No email tool or provider has been selected or implemented. Recipient contact
+details, party contact versus individual recipients, delivery results, and
+retry rules remain open. Cancelling through a parent-booking predicate does
+not itself send messages or cancel work in external systems.
 
 ## Room services and work done elsewhere
 
@@ -485,7 +542,9 @@ pending.
 - Draft/hold/party links before confirmation and the amendment lifecycle.
 - Party-detail sources, classification ambiguity, and any interpretation of sentiment.
 - Price-version references, quote timing, and price sharing across hotels.
-- The detailed records for the logbook, jobs, grouped bookings, and cancellations.
+- The detailed records for jobs, grouped bookings, and cancellations.
+- Activity change notifications and recipient contact details.
+- Activity reservation unit, current-state reads, and safe capacity changes.
 - Thread messages, tool calls, pending work, and their links to the audit record.
 - How to supply and validate time context for the agent.
 
@@ -507,6 +566,7 @@ Use lexical retrieval for search in the first version. Embeddings are deferred.
 - Checkout alerts from the scheduling machinery.
 - Automatic personalisation using party details.
 - Room-key entry and exit events, if a source of those events is added later.
+- Arrival/departure logging if a reliable source is introduced later.
 - Grouping freeform key deactivation reasons.
 - Further Jev classification experiments. Guest-reference classification for
   new party details is now selected above; API details still need investigation.
