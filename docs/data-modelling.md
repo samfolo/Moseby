@@ -73,8 +73,9 @@ Proposed details:
 - First name and last name.
 - Age, because some activities may have age restrictions.
 
-Age is the current proposal. We still need to decide how it stays accurate for
-returning guests.
+Age is the current proposal. Comparing ages across returning visits is outside
+the initial scope. Detecting an age that does not match the time since a prior
+visit is a possible stretch goal.
 
 Identity documents or identity verification details were considered, but are
 not a requirement at this point. No decision has been made to store document
@@ -127,9 +128,14 @@ meaning of claimed, checked in, and checked out needs to be settled.
 A room can have several keys, so keys need separate records. A single status
 on the room would not describe each issued key.
 
-Possible key states discussed were active, inactive, reported lost, and
-deactivated. The final states have not been chosen. We also need to decide
-whether losing a key is a status, a recorded event, or both.
+A lost key should be deactivated, with the loss recorded as the reason.
+Lost is not a separate key status.
+
+The current preference is a freeform deactivation reason. A fixed list of
+reasons with an other option was considered, but would need to be maintained
+as new reasons arise. Grouping freeform reasons through semantic analysis is
+a possible later addition. The exact active and inactive status names are
+still to be chosen.
 
 The key journey is:
 
@@ -139,6 +145,90 @@ The key journey is:
 
 We have not yet chosen the key properties or how keys relate to an allocation
 and individual guests. Integration with physical door locks is not specified.
+
+## Arrival and departure logbook
+
+Keep an append-only record of guests signing in and signing out, including
+the time of each event. Show these actual times alongside the agreed check-in
+and check-out times.
+
+The logbook is a record in the application; it does not need to look like a
+physical book. Its exact relationship to guests, parties, and room allocations
+still needs to be worked through.
+
+Checkout reminders are a possible stretch goal. They would demonstrate that
+the scheduling machinery can trigger an alert as well as schedule activities.
+No scheduler or cron implementation has been selected.
+
+## Activity schedules and the calendar
+
+Start with a simple calendar using start and end times. The first activities
+remain tennis, pottery, and guided tours. Their capacity and participant rules
+still need properties and checks.
+
+Use an existing calendar library for the interface. Building a calendar renderer
+is not a goal of the exercise. We need to understand the data it expects before
+choosing one. No calendar library has been selected.
+
+## Room services and work done elsewhere
+
+For breakfast delivery and similar requests, the demo can record that a job
+has been sent for another team or system to handle. For example, the record
+could say that breakfast needs to be taken to particular rooms.
+
+Real kitchen or service integrations can come later. The demo must make clear
+when it has only logged a dispatch rather than contacted an external system.
+
+Model the asynchronous work even while dispatch is simulated. The system needs
+to accept progress updates and reports that work has completed or failed. The
+exact states for stored, queued, and in-progress work are still open. Recording
+a dispatch does not by itself mean that the service was completed.
+
+A Kanban view is a possible interface for this work. That is a display choice;
+it does not determine the underlying records or require the calendar library
+to provide it.
+
+## Booking changes and grouped work
+
+Keep grouped bookings in mind while designing individual reservations.
+For example, a two-week all-expenses-paid trip could include accommodation,
+amenities, and activities spread across several days.
+
+If the trip is cancelled, the system needs to cancel the associated bookings
+and release their reserved capacity. We need a way to identify which bookings
+belong to that trip.
+
+One proposal is a higher-level record that acts as a recipe, with a workflow
+that works through its steps. This is an idea to explore, not a chosen workflow
+library or schema. We still need to define what happens when only some steps
+succeed, and what cancelling a group means for work already in progress.
+
+## Threads and the audit record
+
+Durable agent threads remain part of the plan. Titles are likely to be useful,
+but a title or booking-type label should not define what the thread is about.
+The user's goal can change during the conversation.
+
+For example, someone may start by asking for an all-expenses-paid trip and
+later choose a regular booking. The transcript should preserve that change
+of intent. A stale title or category must not override it.
+
+The intended source of conversational context is the transcript. We still
+need to define how it connects to booking records, tool results, and the audit
+record of what actually happened. Thread properties and audit properties have
+not been designed yet.
+
+## Dates and time context
+
+Use UTC for the demo. Structured timestamps in agent threads should also use
+UTC. Hotel-local time handling is deferred.
+
+Relative dates in requests, such as tomorrow, still need a clear interpretation.
+The approach is open. Ideas include dynamic date syntax, system-prompt context,
+validation, or a notice that supplies the current time and relevant world state.
+
+We need to examine how that context stays accurate when a thread resumes later.
+No date syntax, notice format, or conversion mechanism has been selected.
 
 ## Storage and concurrent bookings
 
@@ -153,17 +243,40 @@ Locking was raised as a possible approach. Before choosing one, we need to
 check SQLite's transaction behaviour and decide how to make the availability
 check and booking write safe together. No locking strategy is settled here.
 
+Research whether SQLite can enforce the booking rules we need before committing
+to it. Postgres is an alternative to evaluate if needed. This research is still
+pending.
+
 ## Topics still to work through
 
-- Activity schedules, capacity, and participant rules for tennis, pottery,
-  and guided tours.
-- Breakfast delivery and other room services.
+- Remaining activity properties and capacity checks.
+- Party changes and room availability rules.
 - Charges, the responsible payer, and payment collection.
 - Guest comments, their sources, and any interpretation of sentiment.
-- Hotel-local dates, time zones, and UTC timestamps.
-- Booking changes, cancellations, and unavailable rooms.
-- The audit record for staff actions and agent actions.
-- Durable threads, messages, tool calls, and pending work.
+- The detailed records for the logbook, jobs, grouped bookings, and cancellations.
+- Thread messages, tool calls, pending work, and their links to the audit record.
+- How to supply and validate time context for the agent.
+
+## Architecture and tools: the next phase
+
+After data modelling, list the actions the application needs to support.
+That list will guide the API and the tools exposed to the agent. The project
+author will lead that work; these notes do not define the tool list.
+
+Plan for two separate boundaries: the application API and the inference or
+agent gateway. Design permissions while working through those interfaces.
+The traditional API comes after the data modelling, followed by the inference
+gateway. Their responsibilities and implementation are still open.
+
+## Stretch goals and experiments
+
+- Checkout alerts from the scheduling machinery.
+- Reasoning about inconsistent ages across returning visits.
+- Grouping freeform key deactivation reasons.
+- Trying the API referred to as GEP in the discussion for classification.
+  Its exact identity and a useful classification task still need to be confirmed.
+- Code mode: let the agent write code against a small SDK. This comes after
+  the other stretch goals and is not part of the initial tool interface.
 
 ## How we will develop this
 
