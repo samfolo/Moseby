@@ -1,93 +1,198 @@
-# SQLite schema draft
+# Domain schema draft
 
-[draft.sql](draft.sql) turns the current discussion into SQL that we can read,
-run, and revise. It is not yet a complete booking system or a migration plan.
+[draft.sql](draft.sql) is the current executable SQLite structure for the
+hotel-side concepts reviewed so far. It is a review artifact, not a production
+migration or a complete booking engine. It can be loaded into an empty database.
+The [design notes](../docs/data-modelling.md) preserve decisions and open questions.
 
-**This SQL is an earlier design snapshot.** The current [modelling notes](../docs/data-modelling.md)
-now separate draft and confirmed bookings, place guests under parties, remove
-the primary guest reference, add hotels and party details, and introduce shared
-versioned prices. Those changes have not been applied to the SQL. The choices
-below describe the existing draft, not the final model.
+No performance indexes are included. Primary keys and the one-to-one party link
+are structural constraints; SQLite may create internal indexes for them. Staff
+code uniqueness, hotel-scoped room labels, and other business uniqueness rules
+are left for the next constraint pass.
 
-## What is included
+## Objects and relationships
 
-| Table or view | Purpose |
+| Table | Purpose and relationships |
 | --- | --- |
-| `staff` | Staff identity, human-readable code, name, and title |
-| `guests` | The guest details already discussed, including age |
-| `bookings` | Party name, primary guest, creation time, and proposed booking status |
-| `rooms` | Room number, description, bed and bathroom counts, and category |
-| `room_reservations` | The history of each room reserved under a booking |
-| `current_room_reservations` | The latest revision of each room reservation |
+| `hotels` | Name and address of the hotel |
+| `hotel_staff_members` | Hotel, staff code, names, title, role |
+| `prices` | Stable identity for a rate shared by rooms or activities |
+| `price_versions` | Ordered, immutable amounts and currencies for a price |
+| `rooms` | Hotel, label, description, beds, bathrooms, occupancy, category, tier, operational status, shared price |
+| `bookings` | Confirmed booking identity, hotel, name, immutable creation time |
+| `booking_revisions` | Ordered status history and cancellation reason |
+| `parties` | A party associated with one confirmed booking |
+| `guests` | Party membership, names, age, dietary requirements |
+| `party_details` | Freeform party information and the list of referenced guests |
+| `room_reservations` | Ordered room allocations, stay dates, status, agreed price version |
+| `room_keys` | Issued room access with its own validity period and deactivation information |
+| `venues` | Multipurpose venue, address and capacity |
+| `scheduled_activities` | A dated activity, venue, description, capacity, booking sizes, minimum age, shared price |
+| `activity_reservations` | Ordered activity reservations associated with a party and, provisionally, an individual guest |
 
-The latest guest, price, key, and activity proposals are recorded in the
-[design notes](../docs/data-modelling.md). They have not been added to this SQL
-draft yet. In particular, the guest table still needs its booking link,
-preferred name, dietary requirements, and other accommodations.
+A booking has no primary guest field. Guests reach the booking through their
+party. Rooms have no permanent guest assignments. A room key opens one room.
 
-Guests are not assigned to rooms. A service request can name a destination room
-without establishing a permanent guest-to-room relationship.
+`parties.booking_id` is unique: a booking has at most one party. A transaction
+creating the stay still needs to create its party and at least one guest.
+The database does not currently enforce those minimum child counts.
 
-## Draft choices to review
+## Current state and history
 
-- IDs use caller-supplied text. We have not chosen UUIDs or another ID format.
-- The draft assumes one hotel. Staff codes and room numbers are unique within it.
-- Timestamps use whole Unix seconds, representing UTC instants. This storage
-  format is a draft choice; the UI and API formats remain open.
-- A booking needs an existing primary guest. Decide later whether incomplete
-  bookings should be allowed before that guest is known.
-- Booking statuses use readable text. The proposed numbers for settled (3) and
-  cancelled (4) are recorded in the design notes. No complete number mapping
-  has been selected.
-- The booking status check lists proposed labels. It does not define which
-  transitions are allowed or settle the meaning of each label.
-- The room-reservation status list remains open. For now, the SQL requires only
-  a non-empty label.
-- A room reservation keeps the same booking and room across its revisions.
-  A different room gets a new reservation ID.
+The four ordinary views select the latest revision for each identity:
 
-## How room reservation history works
+- `current_booking_revisions`
+- `current_price_versions`
+- `current_room_reservations`
+- `current_activity_reservations`
 
-`id` identifies the reservation. Together, `id` and `revision` identify one
-historical row. Every revision contains the full state of the reservation.
+They are named queries, not materialised caches. History rows contain the full
+state represented by that revision. This does not mean every property of every
+object is event-sourced: hotel descriptions and guest names, for example, do not
+have revision tables in this draft.
 
-An extension adds revision 2 with a later checkout time. Cancelling that room
-adds revision 3 with a changed status. Both earlier rows remain available.
-The current view selects revision 3, even if the timestamps on the revisions
-are equal. The revision number determines their order.
+Revision triggers prevent overwriting/deleting history, replacement of existing
+revision numbers, and gaps in the sequence. Room and activity reservation
+revisions keep the same associated resources. Choosing revisions and retrying
+conflicting writes remain application responsibilities.
 
-This is an ordinary view: a named query. It does not store a separate copy of
-the results or need to be refreshed like a materialised view.
+### Booking cancellation is terminal
 
-Triggers reject updates, deletes, replacement of existing revisions, and gaps
-in revision numbers. They also keep the reservation tied to its original
-booking and room. Choosing and retrying revision writes in the application
-still needs to be designed.
+The first booking revision must be `confirmed`. A `cancelled` revision needs a
+reason. No further booking revision may be appended after cancellation.
+Booking again creates a new booking rather than reinstating the old one.
+The full transition graph for other statuses, especially `error`, is still open.
 
-## Rules still missing
+`uncancelled_activity_reservations` implements only the agreed cancellation
+predicate: latest activity status is active and parent booking is not cancelled.
+It retains historical activity rows without inserting child cancellations.
+This view is not a complete capacity calculation. The meaning of other parent
+statuses, historical reporting, and concurrent reservation changes still need
+policy. No physical delete cascade represents a business cancellation.
 
-The schema does not yet prevent overlapping room reservations or coordinate a
-booking cancellation with all its room reservations. Status transition rules,
-concurrent booking behaviour, and the effect of booking status on availability
-are still open.
+Individual activity reactivation has not been made terminal by the booking
+rule. If supported, it requires a fresh capacity check.
 
-Price records, payment references, party membership, keys, the arrival logbook,
-activities, jobs, permissions, and agent threads still need their own passes.
-The payment provider's internal lifecycle is outside this exercise.
+## Provisional representation choices
+
+These make the draft concrete without claiming the author has settled them:
+
+- Text IDs, with the ID format still unselected.
+- Integer Unix timestamps in UTC, preserving the earlier draft convention.
+- Integer currency minor units for amounts. This does not assume every currency
+  has two decimal places. Supported currencies and validation remain open.
+- A price version is identified by `(price_id, revision)`. Highest revision is
+  current for new quotes. Reservations pin their agreed version.
+- Price-per-night and activity charging units are interpreted by their use.
+  The activity charging unit remains open; no pricing calculation is implemented.
+- `max_occupants` on rooms; no minimum occupancy. Category, tier, and operational
+  status remain text while their meanings and allowed values are reviewed.
+- A staff member belongs to one hotel in this draft; multi-hotel staff membership
+  is not modelled. Code uniqueness scope remains open.
+- Address columns include an optional country code. No claim of a complete
+  international address standard is made.
+- Party detail references are a JSON array. SQL checks only that it is an array;
+  Python must validate element types, duplicates, and membership in the party.
+  `NULL` means no accepted classification yet; `[]` means no referenced guests.
+  Failure versus ambiguity versus waiting still needs API design.
+- Keep the earlier one-guest-per-activity-reservation structure while changing
+  its parent reference to party. A party quantity-only reservation remains an
+  alternative. Individual guest/party consistency needs validation.
+- `deactivated_at` records key revocation without an active/inactive column.
+  Retention of disabled keys is not decided. No door-lock integration exists.
+- A null activity capacity means no activity-level limit. How this interacts
+  with finite venue capacity remains open. Maximum booking size may also be null.
+- Zero is a possible price. Choosing a confirmed booking does not imply payment
+  has been received; confirmation and payment remain distinct concepts.
+
+## Boundaries still to model
+
+These are not hidden assumptions or placeholder runtime tables. They remain
+explicit work to do before the model supports a complete booking journey.
+
+### Drafts and holds
+
+Known: a draft describes the desired stay; a hold secures capacity temporarily;
+confirmation consumes the hold and creates a confirmed booking. Hold expiry and
+room checkout are separate times.
+
+Still open: draft contents and guest-data retention, one hold per room versus a
+set of rooms, which records link drafts to parties, expiry/consumption fields,
+quote locking, and the transaction that confirms the stay. An expired hold must
+stop blocking capacity without waiting for cleanup. No draft/hold DDL has been
+invented to force these unresolved choices.
+
+### External service requests and jobs — next design pass
+
+Preserve the desired asynchronous behaviour:
+
+1. A tool submits work and obtains a stable job reference.
+2. The run can stop waiting without losing the job.
+3. Later updates report progress, completion, failure, or a need for more input.
+4. Those updates can let the appropriate run continue.
+
+A simulated integration can exercise that contract. We do not need a set of
+real vendors, a general integration registry, or stored arbitrary endpoint URLs
+for the first experiment. These are proposed boundaries, not an implementation.
+Job properties, update history, correlation with tool calls/runs, and restart
+behaviour still need modelling after the runtime walkthrough.
+
+### Payment evidence — proposed minimum, no provider integration
+
+We need to distinguish an agreed price from evidence that money was paid.
+A possible small record would include identity, the draft/booking it relates
+to, amount, currency, source, an external transaction/reference when present,
+reported outcome and time. These fields are a proposal, not a selected payment
+schema. The pre-confirmation association is unresolved with the draft model.
+
+A source must distinguish simulation from a staff-recorded external payment or
+an eventual provider confirmation. A simulation cannot establish that real money
+moved. A staff-recorded payment is an assertion, not provider verification.
+No card numbers, payment-provider credentials, charge execution, refunds, or
+payment-provider state machine are being implemented. Stripe integration is
+not required for this modelling pass. See the
+[Stripe payment object description](https://docs.stripe.com/payments/payment-intents)
+for the distinction between amount/currency and a payment's lifecycle.
+
+### Notifications
+
+Changed activities need notifications to affected parties/guests. Recipient
+contact details, delivery attempts, and an email operation remain to be designed.
+No emails have been sent and no provider is configured.
+
+### Agent runtime
+
+Threads, thread records, runs, cued inputs, model requests, pending tool work,
+schedules, and claims remain in [runtime notes](../docs/agent-runtime.md).
+The author is still reviewing that list; this pass does not invent their DDL.
+
+## Deferred scope
+
+- Grouped trip workflows, pre-packaged stays, and reserved VIP/standard activity
+  quotas. Grouping a trip does not require separate capacity tiers.
+- Arrival/departure logbook: there is no reliable complete tap-out signal.
+- Discounts, room-credit accounting, and a full payment integration.
+- Semantic retrieval, code execution, and subagents.
+
+## Rules still to verify
+
+This is deliberately not a finished concurrency or constraint design. Remaining
+rules include room/hold overlap, aggregate room occupancy over time, activity
+capacity, age and booking-size checks, cross-hotel references, guest/party
+consistency, duplicate active activity reservations, quote timing, operational
+room restrictions, and the complete status transitions. A hold, reservation,
+and payment must not be assumed to commit atomically across an external vendor.
 
 ## Inspect the draft
 
-From the repository root, using SQLite 3.37 or later:
+Requires SQLite 3.38+ for the JSON functions and `unixepoch()` used here.
 
 ```sh
-sqlite3 :memory: '.read schema/draft.sql' '.schema'
+sqlite3 :memory: '.read schema/draft.sql' 'PRAGMA foreign_key_check;'
 ```
 
 Every database connection must enable `PRAGMA foreign_keys = ON` before starting
-a transaction. The setting at the top of the draft covers the connection that
-loads the script, not future connections.
-
-SQLite supports [CHECK constraints](https://www.sqlite.org/lang_createtable.html#check_constraints),
-[STRICT tables](https://www.sqlite.org/stricttables.html), and
-[triggers](https://www.sqlite.org/lang_createtrigger.html).
-See also its [foreign key documentation](https://www.sqlite.org/foreignkeys.html).
+a transaction. This script's setting applies only to the connection loading it.
+SQLite has one simultaneous write transaction per database, not one permanent
+writer or one row change at a time. A transaction can change many rows. Read and
+write transactions are described in [SQLite's documentation](https://www.sqlite.org/lang_transaction.html).

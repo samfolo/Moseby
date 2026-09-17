@@ -4,11 +4,12 @@ Moseby is a lightweight experiment in proactivity for resort scheduling.
 This document records the current thinking. It is a draft, not a finished
 database schema. Open questions are left open so we can work through them.
 
-The executable [SQLite draft](../schema/draft.sql) captures an earlier pass.
-It has not yet been updated for the draft/confirmed booking split, party
-membership, party details, hotel records, or versioned shared prices below.
-These notes are the current design discussion; they do not make every open
-question a settled schema decision.
+The executable [SQLite draft](../schema/draft.sql) now captures the reviewed
+hotel-side structure: hotels, staff, confirmed bookings, parties, guests, party
+details, rooms, keys, activities, and versioned prices and reservations.
+Its [guide](../schema/README.md) labels provisional representations and the
+boundaries still to model. Drafts/holds, payments, external jobs and the agent
+runtime do not yet have final DDL. No performance indexes are being added now.
 
 ## Who uses Moseby?
 
@@ -84,6 +85,12 @@ There is no primary guest reference and no owning staff member. Confirmed
 replaces settled; under revision replaces under review. Confirmed can become
 cancelled, completed, or under revision. The error state is still being
 considered. The full transition rules are not settled after the draft split.
+
+Cancellation is now terminal: a cancelled booking cannot be reinstated. Booking
+again creates a different booking. History retains the cancellation, but no
+special reinstatement revision is needed. The SQL enforces this on booking
+revision history. This does not yet decide whether a separately cancelled
+activity reservation can be reinstated under an otherwise valid booking.
 
 Before this split, awaiting confirmation held capacity, in progress did not,
 and under revision retained an existing allocation. We need to carry those
@@ -288,14 +295,13 @@ Properties discussed for pricing:
 - Update timestamp was considered; its role on an anchor or version is open.
 
 The intent is to preserve historical prices, so a price change creates a new
-version rather than overwriting an old amount. How the current version is
-selected is open: a pointer and an ordered revision history were not yet chosen
-between. Do not rely on ambiguous equal creation timestamps.
+version rather than overwriting an old amount. The executable draft uses the
+highest revision as current, without a mutable pointer. This is a provisional
+representation recorded in the schema guide, not a timestamp tie-break rule.
 
 An agreed reservation must retain its agreed price when the shared price changes.
-Referencing the exact price version is the suggested mechanism, not yet a final
-column choice. When a draft locks its quote, and what happens if prices change
-before confirmation, are open.
+The SQL draft references the exact price ID and revision. When a draft locks
+its quote, and what happens if prices change before confirmation, are open.
 
 Price sharing across hotels was raised; hotel ownership and permissions for a
 shared price remain open. Money representation is also open. Effective date
@@ -419,10 +425,11 @@ avoids inserting a cancellation revision into every activity reservation just
 because the parent booking was cancelled. All availability and operational
 queries must use the same rule. Which booking states qualify is still open.
 
-Restoring a cancelled booking or activity reservation must not silently reclaim
-capacity that has since been reserved elsewhere. Revalidation is required if
-restoration is supported. Historical reports also need the booking state at the
-time being reported, rather than applying today's status to all past activity.
+The parent booking cannot be restored after cancellation. If individual activity
+reactivation is supported under a valid booking, it must not silently reclaim
+capacity that has since been reserved elsewhere. Historical reports also need
+the booking state at the time being reported, rather than applying today's
+status to all past activity.
 
 The preference is to handle activity availability and capacity checks in the
 application layer. Append-only history does not remove conflicting writes or
@@ -438,8 +445,12 @@ For reads, an ordinary view can select the latest full revision per reservation
 if that is the chosen history format. A view names a query; it does not cache
 its results. A separately maintained current-state table is another option,
 updated in the same transaction as history. Neither requires loading the whole
-history into Python for every read. This is a design option, not implemented
-machinery. See [SQLite views](https://www.sqlite.org/lang_createview.html).
+history into Python for every read. See
+[SQLite views](https://www.sqlite.org/lang_createview.html).
+
+The SQL pass now uses full revisions and ordinary current-state views. It also
+includes a view applying the parent-cancellation predicate. That view is not a
+complete availability calculation and does not resolve other booking states.
 
 Use an existing calendar library for the interface. Building a calendar renderer
 is not a goal of the exercise. We need to understand the data it expects before
@@ -472,9 +483,27 @@ A Kanban view is a possible interface for this work. That is a display choice;
 it does not determine the underlying records or require the calendar library
 to provide it.
 
-## Booking changes and grouped work
+Keep this as an explicit next design task. The required behaviour is to submit
+work through a tool, retain a job reference, and later receive progress,
+completion, failure, or a request for more input. Simulate asynchronous work
+before building real integrations. Integration configuration, update records,
+and resuming the appropriate run still need design; they should not block the
+remaining walkthrough. No arbitrary-endpoint integration registry is selected.
 
-Keep grouped bookings in mind while designing individual reservations.
+## Payments: minimum model still to design
+
+Do not build a payment provider or set up Stripe in this pass. We need enough
+information to distinguish the agreed charge from evidence of payment. The
+[schema guide](../schema/README.md#payment-evidence--proposed-minimum-no-provider-integration)
+records a proposed small payment-evidence record, with amount, currency, source,
+reference and outcome. Its association before booking confirmation remains open.
+These are proposed fields, not selected DDL. A simulated payment is explicitly
+simulation; it does not mean money moved. Room-credit and full payment accounting
+remain deferred.
+
+## Grouped trips and package capacity: deferred
+
+This idea originally grouped the pieces of an entire experience.
 For example, a two-week all-expenses-paid trip could include accommodation,
 amenities, and activities spread across several days.
 
@@ -486,6 +515,12 @@ One proposal is a higher-level record that acts as a recipe, with a workflow
 that works through its steps. This is an idea to explore, not a chosen workflow
 library or schema. We still need to define what happens when only some steps
 succeed, and what cancelling a group means for work already in progress.
+
+Packaged holidays and reserved standard/VIP activity quotas are now explicitly
+stretch goals. Do not add activity reservation tiers or capacity buckets to
+the initial schema. Grouping a trip does not require those tiers. Local database
+changes may share a transaction; external work cannot be made atomic merely by
+putting a list of commands in a database transaction.
 
 ## Threads and the audit record
 
@@ -530,9 +565,12 @@ Locking was raised as a possible approach. Before choosing one, we need to
 check SQLite's transaction behaviour and decide how to make the availability
 check and booking write safe together. No locking strategy is settled here.
 
-Research whether SQLite can enforce the booking rules we need before committing
-to it. Postgres is an alternative to evaluate if needed. This research is still
-pending.
+SQLite allows one simultaneous write transaction per database. It can contain
+many row changes, and different connections can take turns writing. This does
+not require a single permanent worker. The capacity transaction and contention
+handling still need design; do not keep a database write transaction open while
+waiting for model inference or an external service. See
+[SQLite transactions](https://www.sqlite.org/lang_transaction.html).
 
 ## Topics still to work through
 
