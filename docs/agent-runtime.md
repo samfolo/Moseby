@@ -79,7 +79,8 @@ Different events can let the run continue:
 - A required tool result is recorded.
 - A control request, such as cancellation, needs handling.
 
-If we adopt steering, new staff input could also end certain waits early.
+An eligible steer should also let a waiting run resume. The polling behaviour
+and message lifecycle are described below.
 
 Waiting for user input after a completed turn is different from a run waiting
 on a tool. A suspended run may also have no known wake time if it is waiting
@@ -103,11 +104,47 @@ queue must preserve where input came from and its order.
 A tool result continues the run that requested it. It is not another queued
 user turn.
 
-We are now considering steering: letting staff give new instructions to the
-current run, particularly while it is waiting. The [Codex steering research](steering.md)
-explains how its loop reads pending input and how certain waits end early.
-Queueing, steering, and stopping are different actions. Their defaults and
-the exact behaviour for Moseby remain open.
+Steering should let staff give new instructions to the current run, particularly
+while it is waiting. The [Codex steering research](steering.md) provides an
+example. Queueing, steering, and stopping are different actions. The default
+when staff send a message, and which waits can end early, remain open.
+
+### Intended message behaviour
+
+One self-contained part of the engine must own the message lifecycle and its
+allowed changes. The API, polling code, and agent loop must use that same set
+of rules, rather than each changing message state independently.
+
+We want to distinguish three milestones. These describe behaviour, not a final
+list of database states:
+
+| Milestone | Meaning |
+| --- | --- |
+| Cued (working name) | The message has been saved for a thread and is waiting to be used. |
+| Added to the conversation | The message has been placed in the ordered conversation history. |
+| Included in a model request | We can identify the request that included the message. This does not prove the model followed it. |
+
+The same message may appear in later requests as part of the history. It must
+not be added to the conversation again each time. Exactly when request inclusion
+is recorded, including what happens if sending fails, remains to be designed.
+
+The polling mechanism should check both due `wake_at` timestamps and saved
+messages that are ready to be handled. New input must be discoverable from
+saved state; a separate wake-up signal is not required for correctness.
+
+- A queued follow-up waits until the current run finishes.
+- A steer can make its intended waiting run ready to resume before `wake_at`.
+- If the run is already executing, it checks for eligible input at defined
+  points before a later model request. The poller must not start a second run.
+- Ending a wait does not by itself cancel the external work being awaited.
+
+The existence of a saved message alone is therefore not enough to wake a run:
+the message must be eligible for that run now. Polling repeatedly or restarting
+the application must not lose accepted input or add it to the conversation twice.
+
+Still open: the API operations and names, the table layout, how pending messages
+relate to thread records, and what happens when a steer's intended run has
+already finished. No schema or implementation is chosen by these notes.
 
 ## Side questions and helper inference
 
