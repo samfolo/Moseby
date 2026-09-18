@@ -14,6 +14,12 @@ two points below: confirmed payment is now required before creating a booking,
 and technical `error` is rejected as a booking status. The SQL has not yet been
 revised for these decisions. `under_revision` remains under discussion.
 
+The subsequent [room review](../docs/data-modelling.md#bed-relationship-latest-review)
+selects separate mutable bed rows and a room `in_service` boolean, with dated
+availability derived from reservations and holds. These are not yet reflected
+in the SQL. Deriving maximum occupancy from beds still requires deciding that
+the demo has no independent room occupancy limit. Housekeeping is out of scope.
+
 No performance indexes are included. Primary keys and the one-to-one party link
 are structural constraints; SQLite may create internal indexes for them. Staff
 code uniqueness, hotel-scoped room labels, and other business uniqueness rules
@@ -94,8 +100,9 @@ These make the draft concrete without claiming the author has settled them:
   current for new quotes. Reservations pin their agreed version.
 - Price-per-night and activity charging units are interpreted by their use.
   The activity charging unit remains open; no pricing calculation is implemented.
-- `max_occupants` on rooms; no minimum occupancy. Category, tier, and operational
-  status remain text while their meanings and allowed values are reviewed.
+- `max_occupants` on rooms; no minimum occupancy. Bed-derived capacity is now
+  proposed. Category and tier remain under review; `operational_status` is stale
+  pending replacement with the selected `in_service` boolean.
 - A staff member belongs to one hotel in this draft; multi-hotel staff membership
   is not modelled. Code uniqueness scope remains open.
 - Address columns include an optional country code. No claim of a complete

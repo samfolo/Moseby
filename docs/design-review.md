@@ -109,12 +109,14 @@ state transitions are not agreed.
   group. Still open: corrections and early departures, their effects on future
   activities/capacity, and whether attendance dates need representing. Do not
   automatically turn a correction into a new stay or erase prior records.
-- [ ] **B4 — What makes a room operationally available?** Finalise category versus
-  tier, any eligibility restriction, operational status labels, and cleaning
-  turnaround. Decide whether expected cleaning completion is enough or staff
-  must mark the room ready. Specify how an out-of-service room affects existing
-  reservations. Clarify whether claiming/checking into a room needs its own
-  record; the arrival/departure logbook is deferred.
+- [ ] **B4 — Room configuration and availability.** Answered: separate mutable
+  bed rows belong to rooms; retain versioned pricing; use an `in_service` boolean
+  and derive dated availability from reservations and live holds. Housekeeping
+  is outside this version. Still open: category/tier meaning, bed-type capacity
+  mapping and whether the demo equates room capacity with total sleeping places;
+  treatment of existing reservations when a room goes out of service. See
+  [the bed relationship review](data-modelling.md#bed-relationship-latest-review).
+  Check-in records and the arrival/departure logbook remain deferred.
 - [ ] **B5 — What ends a key's access?** Decide whether keys are retained after
   deactivation, and approve or replace the draft's `deactivated_at` field. Explain
   shortening/extending stays, moving rooms, and cancelling a booking. The key
@@ -315,7 +317,7 @@ when reviewing the relevant section; do not treat their existence as agreement.
 | Guest names, ages, dietary requirements and party details are mutable without history | B3, E4 |
 | One staff member belongs to one hotel | E2 |
 | Venues and prices have no hotel-owner field | C2, D2, E2 |
-| Room `max_occupants`; freeform category, tier and operational status | B4 |
+| Room `number_of_beds`, `max_occupants`, category, tier and operational status remain in SQL | B4 — beds table and `in_service` selected; derived occupancy still needs its scope assumption |
 | Room-only key reference, nullable deactivation time, retained record | B5 |
 | One activity reservation per guest; maximum booking size can be null | C1 |
 | Activity fields are mutable; no change record or cancellation field | C3 |

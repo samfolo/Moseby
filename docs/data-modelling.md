@@ -228,26 +228,58 @@ A room is a physical room in the hotel. Proposed details include:
 - A unique room ID.
 - Hotel association.
 - A room number that staff and guests recognise.
-- Operational status, including a way to mark the room out of service.
+- An `in_service` boolean; availability is calculated for requested dates.
 - A description.
-- Number of beds and number of bathrooms, as separate columns.
+- Number of bathrooms. Beds are separate mutable rows associated with the room,
+  rather than a JSON configuration or a separately maintained bed count.
 - Room category; the earlier twin/master/presidential list is being reconsidered
   because it mixes bed arrangement and room class.
 - A possible separate tier, such as VIP; its meaning is not settled.
-- Occupancy capacity, separate from the number of beds.
+- Capacity derived from beds is the preferred direction; see the distinction
+  between sleeping capacity and an independent room limit below.
 - Shared price ID, following the pricing direction below.
 
 Room numbers are human-readable labels that can be printed on passes. They
 are separate from the room's unique ID. The description can explain the room
 to staff and guests, including its features and appeal.
 
-Rooms are manually curated. Operational status is distinct from whether a room
-is reserved for particular dates. Handling existing reservations when a room
-goes out of service remains open.
+Rooms are manually curated. Availability uses the in-service flag, overlapping
+room reservations and live holds. Do not store available/booked/held as one
+mutable status on the room: those answers depend on dates. Handling existing
+reservations when a room goes out of service remains open. Housekeeping and
+cleaning schedules are outside this version; staff prepare rooms externally.
 
-Room turnover after departure was also raised: cleaning/resetting can delay
-when the room becomes available again. Its status, timing, and relationship to
-reservation dates are not yet designed.
+### Bed relationship: latest review
+
+Use one room to many beds. Each bed row has a local ID, room ID and bed type,
+and can be updated directly. The ID identifies a database entry; it does not
+require a physical asset tag or maintenance inventory. A bed status was raised,
+but its purpose and values are not selected. No new status system is implied.
+
+Rooms containing a king bed can be found in one query using `EXISTS` or a join
+with distinct room IDs. Separate queries are possible but unnecessary. Bed
+counts can be derived. Index selection remains deferred.
+
+The proposed capacity rule is the SUM of associated beds' sleeping capacities,
+not the largest single bed capacity. A central bed-type capacity mapping could
+live in a small table or application code; its location and values are open.
+A shared type table would be normalisation, not denormalisation.
+
+An independently imposed maximum occupancy is a different fact: a room could
+have four sleeping places but a hotel-set limit of three. Deriving the only room
+capacity from beds is valid for the demo if we explicitly assume no separate
+room limit. This assumption still needs acceptance before removing
+`max_occupants` from the SQL. Repository access can enforce the chosen rule,
+but cannot make these two meanings equivalent.
+
+Pricing remains a shared price anchor with versions; do not derive the price
+from bed types or bathroom count. Tier remains separate from bed configuration.
+Category is still under review. An ensuite means a bathroom attached to the
+bedroom; a bathroom count alone does not express that relationship. Detailed
+bathroom layout is not required for this version.
+
+The SQL has not yet been revised: it still contains `number_of_beds`,
+`max_occupants` and `operational_status`, and no beds table.
 
 The proposed occupancy rule is that the rooms reserved for a party provide
 enough total capacity for its guests throughout the stay. A single guest may
