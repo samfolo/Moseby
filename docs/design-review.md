@@ -3,7 +3,8 @@
 This is the review checklist for the current design. It consolidates the
 [domain notes](data-modelling.md), [runtime notes](agent-runtime.md), and
 [SQL draft and guide](../schema/README.md), reviewed against commit `365a435`.
-It adds no tables, features, indexes, or implementation decisions.
+The subsequent A/B review is captured in [Checkout lifecycle](checkout-lifecycle.md).
+This checklist adds no tables or indexes; answered parts are noted below.
 
 Unchecked items are questions, not instructions to build more features. Answer
 one section at a time; a deliberate simplification or deferral is a valid answer.
@@ -20,6 +21,11 @@ Do not reopen these unless the author changes direction:
 - Draft preparation is separate from confirmed bookings. A temporary hold is
   consumed on confirmation; its expiry is different from the stay dates.
 - Booking cancellation is terminal. Rebooking creates a new booking.
+- Checkout is editable without holding capacity; entering payment requires a
+  live hold. Back out of a hold before editing. A booking requires confirmed
+  payment; staff approval is also requested, with ordering still under review.
+- Technical errors are operation failures, not booking states. Room changes do
+  not replace the whole booking. Added travellers can have separate bookings.
 - Parent booking cancellation makes activity reservations ineffective without
   rewriting all their historical records.
 - Shared prices have stable IDs and versions. Previously agreed prices must
@@ -57,30 +63,28 @@ the behavioural questions.
 
 ## A. Creation: draft, hold, confirmation
 
-**Current gap:** the SQL starts at confirmed bookings. There is no representation
-of the preceding checkout and no agreed storage for its party information.
+**Progress:** the [checkout flow](checkout-lifecycle.md) now records the intended
+journey. Checkout owns payer, guest and party information before confirmation.
+The SQL still has no checkout/hold tables.
 
-- [ ] **A1 — What survives an unfinished checkout?** Decide what a draft stores
-  (room choices, dates, proposed guest details, quote), whether staff can resume
-  it, and for how long. Choose draft-local data or temporary domain records.
-  The earlier discussions considered both; neither was selected. Hold expiry
-  need not automatically mean deleting the draft. Retention also needs to account
-  for copies in threads or job payloads; deleting guest rows alone is not a
-  complete deletion policy. No legal-compliance decision has been made.
-- [ ] **A2 — What does one hold cover?** One room or a set of allocations? Are
-  activities also held before confirmation, or added only after the stay is
-  confirmed? Decide duration, renewal/release, and all-or-nothing versus partial
-  acquisition. A partially available request needs a defined outcome.
-- [ ] **A3 — What authorises confirmation?** Is staff approval enough, is payment
-  evidence required, or are both supported? Earlier discussion allowed a sponsored
-  stay; later wording referred to creating the booking only after payment.
-  Reconcile these explicitly with D3. Confirmation must consume the live hold
-  once and create the agreed stay without releasing capacity in between.
-- [ ] **A4 — What if the draft changes or expires?** Decide whether editing rooms,
-  dates, guests, or price replaces a hold; whether confirmation uses a particular
-  saved draft revision; and what happens if a response arrives after expiry.
-  Confirming twice must not create two stays. Resume may require new availability
-  and price checks rather than reviving the old hold.
+- [ ] **A1 — Storage and expiry details.** Answered: retain checkout information
+  while checkout is live; delete abandoned/expired personal data. Still open:
+  draft payload versus child rows, expiry duration, sweep delay, retention of
+  payment-resolution references and copies in threads/logs/backups. Call this
+  temporary storage with deletion, not a blanket zero-retention promise.
+- [ ] **A2 — Hold scope.** Answered: editing/shopping reserves no capacity; the
+  first successful acquisition reserves it before payment, and conflicting
+  requests cannot both proceed. Still open: one hold per item or whole basket,
+  whether all requested rooms/activities are acquired together, and duration.
+- [ ] **A3 — Confirmation ordering.** Answered: no booking before confirmed
+  payment, no consumption of an expired hold. Staff approval is also wanted.
+  Proposed ordering: acquire hold/freeze quote, staff approval, payment, then
+  check and consume the hold while creating the stay. Approve that ordering
+  and define late/duplicate payment results. Approval alone is not payment.
+- [ ] **A4 — Backing out and payment uncertainty.** Answered: no editing while
+  held; release the hold and compete again. Still open: retry/cancellation once
+  payment is underway or its outcome is unknown. A late successful payment
+  needs resolution even though the expired hold cannot create a booking.
 
 **Done when:** we can explain one successful checkout and one abandoned checkout,
 including where data and capacity live at each step.
@@ -90,24 +94,21 @@ including where data and capacity live at each step.
 **Current gap:** the SQL has revision history, but the change workflow and most
 state transitions are not agreed.
 
-- [ ] **B1 — What is replaced when someone changes rooms?** Choose a new room
-  reservation under the same booking, a proposed revision, or a replacement
-  booking. The last option also affects the one-to-one party link and activities
-  hanging from it. Specify what stays intact while the replacement is pending
-  and what happens if it fails. Do not silently move the party to bypass the
-  original booking's terminal cancellation.
-- [ ] **B2 — What do the remaining statuses mean?** Define allowed booking
-  transitions, including `under_revision`, `completed`, and whether `error`
-  belongs on the booking or only on an attempted operation. Define room
-  reservation statuses and which states retain capacity. Decide what marks a
-  stay completed and whether completion is terminal. The SQL enforces only
-  confirmed-first and cancellation-terminal, not the full lifecycle.
-- [ ] **B3 — How can party membership change?** The earlier immutable-party idea
-  conflicts with adding/removing guests and correcting mistakes. Decide what
-  can change, whether identity links can move, and how a departed guest's future
-  activities are treated. Define when to recheck accommodation capacity. If
-  guests have different attendance dates, either model that or explicitly leave
-  it outside the first version.
+- [ ] **B1 — Room change procedure.** Answered: changing rooms does not replace
+  the whole booking or void its party/activities/details. Proposed flow: retain
+  the original allocation, secure the replacement and agreed adjustment, then
+  confirm the replacement and cancel the old room allocation together. Approve
+  the sequence, including complimentary upgrades and failed payment outcomes.
+- [ ] **B2 — Remaining statuses.** Answered: technical `error` must leave booking
+  status; cancellation stays terminal. Still open: whether `under_revision`
+  remains or a separate change request leaves the booking confirmed; what marks
+  completion and whether it is terminal; room reservation status meanings.
+  The current SQL still allows `error` pending the next DDL pass.
+- [ ] **B3 — Membership corrections and departures.** Answered: additional
+  travellers can use a separate booking/party even if socially part of the same
+  group. Still open: corrections and early departures, their effects on future
+  activities/capacity, and whether attendance dates need representing. Do not
+  automatically turn a correction into a new stay or erase prior records.
 - [ ] **B4 — What makes a room operationally available?** Finalise category versus
   tier, any eligibility restriction, operational status labels, and cleaning
   turnaround. Decide whether expected cleaning completion is enough or staff
@@ -164,8 +165,9 @@ activity with a clear result for capacity and communication.
 proof of payment.
 
 - [ ] **D1 — When is the quote fixed?** At drafting, holding, or confirmation?
-  Decide what happens when a rate changes while a draft is open, how long a quote
-  is honoured, and how an amendment gets priced. Room reservations pin a rate
+  Answered: an agreed quote must survive later rate changes, including any
+  agreed adjustments. Still open: the exact lock point, validity window and
+  amendment pricing. Taking the hold is the proposed lock point. Room reservations pin a rate
   version, but calculation of nights and an agreed total is not yet defined.
   Activity pricing needs a unit: per participant, party, or slot.
 - [ ] **D2 — Who shares and manages a price?** Decide whether a price belongs to
@@ -174,8 +176,8 @@ proof of payment.
   changes. The draft has no explicit pricing unit on the shared price object;
   agree how to prevent accidentally treating a nightly rate as an activity fee.
 - [ ] **D3 — What is the minimum payment story?** Choose staff-recorded external
-  payment, explicit simulation, or both. Decide whether a booking can be
-  confirmed without payment (A3), how a payer/contact is identified without
+  payment, explicit simulation, or both. A booking now requires confirmed
+  payment (A3). Decide how a payer/contact is identified without
   restoring `primary_guest_id`, and whether the evidence references a draft or
   booking. Specify amount, currency, source, reference, reported outcome and time
   if those are needed. No payment provider, live collection, refund engine or
@@ -308,7 +310,7 @@ when reviewing the relevant section; do not treat their existence as agreement.
 | Draft choice | Review with |
 | --- | --- |
 | Booking revisions store status/reason only; booking name remains mutable | B2, E2 — this is not a snapshot of the whole stay |
-| `error` is an allowed booking label; completed is not terminal in SQL | B2 |
+| `error` remains in SQL but has now been rejected; completed is not terminal in SQL | B2 — remove `error` in the next DDL pass |
 | One party per booking is enforced as “at most one”; first revision and guests must be created by an operation | A3, B3 |
 | Guest names, ages, dietary requirements and party details are mutable without history | B3, E4 |
 | One staff member belongs to one hotel | E2 |
@@ -390,7 +392,7 @@ These are deferred scope, not gaps to solve now:
 
 ## Start with one concrete example
 
-Suggested next review: **A, using a two-person, one-room stay.** Decide what is
-saved before confirmation, what holds the room, what permits confirmation and
-what survives abandonment. Then consider the same stay with one room change.
-This settles several links without requiring the runtime or a payment provider.
+The [checkout and room-change diagrams](checkout-lifecycle.md) now cover that
+example. Review the remaining A/B decisions there before continuing with C.
+The retention terminology and the late-payment edge are recorded in the same
+place; no full payment integration is required to discuss them.

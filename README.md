@@ -7,6 +7,8 @@ The project is currently in data modelling and agent-runtime design.
 
 - [Remaining design decisions](docs/design-review.md): the central review checklist,
   organised into small sections, with settled and deferred scope kept separate.
+- [Checkout and room-change diagrams](docs/checkout-lifecycle.md): the current
+  A/B review, including retention and late payment outcomes.
 - [Domain schema guide](schema/README.md): what the SQL currently represents and
   which choices are provisional.
 - [SQL draft](schema/draft.sql): executable hotel-side structure, not yet a complete

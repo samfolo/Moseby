@@ -9,6 +9,11 @@ For one list of decisions still requiring judgement, see the
 [central review checklist](../docs/design-review.md), including the choices
 already present provisionally in this SQL.
 
+The latest [checkout lifecycle review](../docs/checkout-lifecycle.md) supersedes
+two points below: confirmed payment is now required before creating a booking,
+and technical `error` is rejected as a booking status. The SQL has not yet been
+revised for these decisions. `under_revision` remains under discussion.
+
 No performance indexes are included. Primary keys and the one-to-one party link
 are structural constraints; SQLite may create internal indexes for them. Staff
 code uniqueness, hotel-scoped room labels, and other business uniqueness rules
@@ -106,8 +111,9 @@ These make the draft concrete without claiming the author has settled them:
   Retention of disabled keys is not decided. No door-lock integration exists.
 - A null activity capacity means no activity-level limit. How this interacts
   with finite venue capacity remains open. Maximum booking size may also be null.
-- Zero is a possible price. Choosing a confirmed booking does not imply payment
-  has been received; confirmation and payment remain distinct concepts.
+- Zero is a possible price in SQL, but zero-total checkout confirmation still
+  needs policy. The latest requirement is payment confirmation before a booking
+  exists. The schema does not yet model or enforce that requirement.
 
 ## Boundaries still to model
 

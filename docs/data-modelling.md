@@ -55,6 +55,14 @@ address format is still open. No structure above the hotel is needed now.
 
 ## Drafts, holds, and confirmed bookings
 
+The [checkout lifecycle diagrams](checkout-lifecycle.md) capture the latest A/B
+review. Use checkout for the former draft-booking concept. It holds proposed
+payer, guest and party information. Shopping does not reserve capacity; entering
+payment requires a hold. A held checkout cannot be edited without first backing
+out. Confirmed payment is required before creating the booking; staff approval
+is also requested and its ordering is being reviewed. No late confirmation may
+consume an expired hold. Quote amounts and agreed adjustments must be preserved.
+
 The latest direction separates a draft booking from a confirmed booking.
 The draft covers preparation and awaiting confirmation. A booking record is
 created already confirmed. This replaces the earlier proposal to put
@@ -87,8 +95,9 @@ A confirmed booking has:
 
 There is no primary guest reference and no owning staff member. Confirmed
 replaces settled; under revision replaces under review. Confirmed can become
-cancelled, completed, or under revision. The error state is still being
-considered. The full transition rules are not settled after the draft split.
+cancelled or completed. Whether under revision remains a booking status is now
+being reconsidered. Technical errors belong to operations, not the booking.
+The existing SQL still has `error`; remove it in the next DDL revision.
 
 Cancellation is now terminal: a cancelled booking cannot be reinstated. Booking
 again creates a different booking. History retains the cancellation, but no
@@ -109,8 +118,7 @@ Open questions:
 - How does an amendment draft reference the existing booking and confirmed
   agreement? Which changes take effect only after approval?
 - Does history contain full booking snapshots or individual changes?
-- What does error mean for a booking and its reserved capacity? Keeping a
-  failed operation separate from the last valid booking state is a proposal.
+- How are failed operations represented separately from the valid booking?
 
 Payment collection and the distinction between booking contact, guest, and
 payer remain open. The payment provider's internal lifecycle is outside scope.
@@ -135,6 +143,13 @@ approaches were separate draft data or temporary party/guest records retained
 while attached to a live hold or booking. Short retention and periodic cleanup
 were suggested, not selected. Retention duration, resuming an expired draft,
 and deletion rules remain open; no legal-compliance conclusion has been made.
+
+The latest direction places proposed party information in checkout until the
+booking is confirmed. The draft payload versus child-row representation is
+still open. Additional travellers can have a separate booking and party;
+socially travelling together does not require a shared database party. Early
+departures and corrections remain open. See the lifecycle review for why
+temporary persisted checkout data is not a blanket zero-retention guarantee.
 
 ## Guests
 
@@ -258,12 +273,12 @@ is the current state in the existing SQL draft. With proposed amendments, we
 must distinguish the latest accepted reservation from an unconfirmed proposal.
 Adding another room creates a separate reservation.
 
-An alternative now proposed is to secure a replacement reservation or booking
-before cancelling the original, instead of revising it. The exact scope of
-replacement is open. Replacing an entire booking would also affect party and
-activity relationships; we have not chosen to move or cancel those implicitly.
-In either approach, a failed replacement must leave the original allocation
-intact.
+A room change is now explicitly within the existing booking. The proposed
+procedure secures the replacement room reservation before cancelling the old
+room allocation. The party, activity reservations and details remain attached
+to the same booking. Replacing an entire booking is a different operation and
+invalidates the old entitlements; it does not erase their history. The detailed
+room-change and price-adjustment procedure is still under review.
 
 Active, cancelled, expired, and voided were discussed as possible room statuses.
 The final set is still open. The SQL draft accepts non-empty labels until that
