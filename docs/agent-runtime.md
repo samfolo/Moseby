@@ -3,6 +3,9 @@
 These notes capture the current discussion. They are not a schema or an
 implementation plan. Proposed details and open questions are labelled below.
 
+The consolidated review checklist is [Remaining design decisions](design-review.md),
+especially sections F (thread execution), G (work and recovery), and H (scheduling).
+
 ## Thread records and threads
 
 Use thread records for the durable history and threads for the current-state

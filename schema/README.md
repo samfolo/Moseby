@@ -5,6 +5,10 @@ hotel-side concepts reviewed so far. It is a review artifact, not a production
 migration or a complete booking engine. It can be loaded into an empty database.
 The [design notes](../docs/data-modelling.md) preserve decisions and open questions.
 
+For one list of decisions still requiring judgement, see the
+[central review checklist](../docs/design-review.md), including the choices
+already present provisionally in this SQL.
+
 No performance indexes are included. Primary keys and the one-to-one party link
 are structural constraints; SQLite may create internal indexes for them. Staff
 code uniqueness, hotel-scoped room labels, and other business uniqueness rules

@@ -4,6 +4,10 @@ Moseby is a lightweight experiment in proactivity for resort scheduling.
 This document records the current thinking. It is a draft, not a finished
 database schema. Open questions are left open so we can work through them.
 
+For the consolidated list of questions to review, use
+[Remaining design decisions](design-review.md). This document supplies context;
+the checklist separates current decisions, provisional SQL, and deferred scope.
+
 The executable [SQLite draft](../schema/draft.sql) now captures the reviewed
 hotel-side structure: hotels, staff, confirmed bookings, parties, guests, party
 details, rooms, keys, activities, and versioned prices and reservations.
@@ -574,17 +578,10 @@ waiting for model inference or an external service. See
 
 ## Topics still to work through
 
-- Remaining activity properties and capacity checks.
-- Party changes and room availability rules.
-- Charges, the responsible payer, and payment collection.
-- Draft/hold/party links before confirmation and the amendment lifecycle.
-- Party-detail sources, classification ambiguity, and any interpretation of sentiment.
-- Price-version references, quote timing, and price sharing across hotels.
-- The detailed records for jobs, grouped bookings, and cancellations.
-- Activity change notifications and recipient contact details.
-- Activity reservation unit, current-state reads, and safe capacity changes.
-- Thread messages, tool calls, pending work, and their links to the audit record.
-- How to supply and validate time context for the agent.
+The active questions are centralised in [Remaining design decisions](design-review.md).
+Use that checklist rather than maintaining a second task list here. Grouped
+trips, the logbook, and other stretch goals are listed there as deferred, not
+requirements for the next schema pass.
 
 ## Architecture and tools: the next phase
 
