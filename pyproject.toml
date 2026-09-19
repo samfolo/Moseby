@@ -1,0 +1,16 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "moseby"
+version = "0.1.0"
+description = "A proactive resort operations experiment."
+requires-python = ">=3.14"
+dependencies = [
+    "fastapi==0.141.1",
+    "pydantic==2.13.5",
+]
+
+[project.optional-dependencies]
+contract = ["PyYAML==6.0.3"]

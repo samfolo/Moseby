@@ -5,6 +5,9 @@ The project is in contract design; the SQL draft is not yet a complete applicati
 
 ## Current contracts
 
+- [Python contract draft](docs/python-contract.md): first Pydantic models,
+  proposed endpoint permissions and verified QUERY generation behaviour.
+- [Generated OpenAPI](openapi.yaml): room search and guest updates for review.
 - [Resource and API contract](docs/api-overview.md): selected conventions, resources
   and remaining route/payload choices.
 - [Runtime contract](docs/runtime-review.md): threads, jobs/tasks, claims, records,
@@ -25,5 +28,6 @@ selects an implementation or changes the domain model.
 - [Codex steering research](docs/steering.md)
 - [Schema guide](schema/README.md) and [older SQL draft](schema/draft.sql)
 
-No runtime code, server/framework, scheduler library or performance indexes have
-yet been selected/implemented. The current pass records decisions before that work.
+The Python contract draft uses FastAPI to generate OpenAPI. Its handlers return
+501; application services, workers, scheduler and database access remain unimplemented.
+The wider contracts above still distinguish accepted decisions from proposals.

@@ -4,7 +4,11 @@ This is the canonical API review after the author's iterations. **Selected**
 conventions are distinguished from **proposed** paths or still-open behaviour.
 It describes the intended model, not what the older SQL currently implements.
 See [runtime contract](runtime-review.md), [permissions/tool review](permissions-and-tools.md)
-and the [remaining decisions](design-review.md). No gateway or DDL is added.
+and the [remaining decisions](design-review.md). The first
+[Pydantic contract slice](python-contract.md) now makes room search and guest
+updates reviewable. It now includes the author's enum, shared amount/range and
+payload naming review; approved ULID prefixes and service-status naming are recorded there.
+No working gateway or DDL is added.
 
 ## Selected conventions
 

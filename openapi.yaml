@@ -1,0 +1,622 @@
+# Generated from moseby/contracts; edit the Python source.
+openapi: 3.2.1
+info:
+  title: Moseby contract draft
+  description: First review slice. Permission annotations are proposals, not enforcement.
+    Operations return 501.
+  version: 0.1.0
+paths:
+  /rooms:
+    query:
+      summary: Search rooms
+      description: Combine filters and return current prices. An availability window
+        restricts results to free rooms; no capacity is held.
+      operationId: searchRooms
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Room_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        allOf:
+        - rooms:read
+      x-access-policy: staff-hotel
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRoomsRequest'
+  /rooms/{id}:
+    get:
+      summary: Read a room
+      operationId: getRoom
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^room_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Room'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        allOf:
+        - rooms:read
+      x-access-policy: staff-hotel
+  /guests/{id}:
+    get:
+      summary: Read a guest
+      operationId: getGuest
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^guest_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guest'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        allOf:
+        - guests:read
+      x-access-policy: staff-hotel
+    patch:
+      summary: Update a guest
+      description: Apply the masked fields to the existing guest and validate the
+        resulting guest before saving.
+      operationId: updateGuest
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^guest_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateGuestRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Guest'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        allOf:
+        - guests:write
+      x-access-policy: staff-hotel
+components:
+  schemas:
+    AmountRange:
+      properties:
+        min_value:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Min Value
+        max_value:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Value
+        currency:
+          $ref: '#/components/schemas/Currency'
+      additionalProperties: false
+      type: object
+      required:
+      - currency
+      title: AmountRange
+      description: Inclusive minor-unit bounds, compared only within the given currency.
+    AvailabilityWindow:
+      properties:
+        min_date:
+          type: string
+          format: date-time
+          title: Min Date
+          description: Inclusive start of required availability.
+        max_date:
+          type: string
+          format: date-time
+          title: Max Date
+          description: Exclusive end of required availability.
+      additionalProperties: false
+      type: object
+      required:
+      - min_date
+      - max_date
+      title: AvailabilityWindow
+      description: Both bounds are required to find rooms free for the entire interval.
+    Bed:
+      properties:
+        id:
+          $ref: '#/components/schemas/BedId'
+        type:
+          $ref: '#/components/schemas/BedType'
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - type
+      title: Bed
+    BedId:
+      type: string
+      pattern: ^bed_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    BedType:
+      type: string
+      enum:
+      - bed_type_single
+      - bed_type_twin
+      - bed_type_double
+      - bed_type_queen
+      - bed_type_king
+      title: BedType
+      description: Supported bed categories; dimensions and sleeping capacity are
+        defined separately.
+    ContactPreference:
+      type: string
+      enum:
+      - contact_preference_phone
+      - contact_preference_email
+      title: ContactPreference
+      description: Preferred contact channel; null on the guest selects all supplied
+        channels.
+    Currency:
+      type: string
+      pattern: ^[A-Z]{3}$
+      description: ISO 4217 currency code, such as GBP.
+    Guest:
+      properties:
+        id:
+          $ref: '#/components/schemas/GuestId'
+        party_id:
+          $ref: '#/components/schemas/PartyId'
+          description: Party for this stay; immutable membership.
+        first_name:
+          type: string
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          minLength: 1
+          title: Last Name
+        preferred_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preferred Name
+        age:
+          type: integer
+          minimum: 0.0
+          title: Age
+          description: Recorded age for activity eligibility.
+        dietary_requirements:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dietary Requirements
+          description: Reported dietary requirements in the staff member's own words.
+        phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        contact_preference:
+          anyOf:
+          - $ref: '#/components/schemas/ContactPreference'
+          - type: 'null'
+          description: Null uses every supplied channel; a preference requires that
+            contact.
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - party_id
+      - first_name
+      - last_name
+      - preferred_name
+      - age
+      - dietary_requirements
+      - phone
+      - email
+      - contact_preference
+      title: Guest
+      description: One person during one stay; returning visitors receive new guest
+        IDs.
+    GuestId:
+      type: string
+      pattern: ^guest_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HotelId:
+      type: string
+      pattern: ^hotel_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    NightlyPrice:
+      properties:
+        price_id:
+          $ref: '#/components/schemas/PriceId'
+          description: Shared price identity across revisions.
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+          description: Version of the displayed nightly rate.
+        amount:
+          $ref: '#/components/schemas/NonNegativeAmount'
+      additionalProperties: false
+      type: object
+      required:
+      - price_id
+      - revision
+      - amount
+      title: NightlyPrice
+    NonNegativeAmount:
+      properties:
+        value:
+          type: integer
+          minimum: 0.0
+          title: Value
+          description: Nonnegative integer currency minor units.
+        currency:
+          $ref: '#/components/schemas/Currency'
+      additionalProperties: false
+      type: object
+      required:
+      - value
+      - currency
+      title: NonNegativeAmount
+      description: A price that cannot be negative; zero permits complimentary items.
+    NumberRange:
+      properties:
+        min_value:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Min Value
+        max_value:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Max Value
+      additionalProperties: false
+      type: object
+      title: NumberRange
+      description: Inclusive integer bounds; omit either bound for an open-ended range.
+    Page_Room_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Room'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[Room]
+    PartyId:
+      type: string
+      pattern: ^party_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    PriceId:
+      type: string
+      pattern: ^price_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    Room:
+      properties:
+        id:
+          $ref: '#/components/schemas/RoomId'
+        hotel_id:
+          $ref: '#/components/schemas/HotelId'
+        label:
+          type: string
+          minLength: 1
+          title: Label
+          description: Room number or name as shown to guests.
+        description:
+          type: string
+          title: Description
+        tier:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tier
+        number_of_bathrooms:
+          type: integer
+          minimum: 0.0
+          title: Number Of Bathrooms
+        service_status:
+          $ref: '#/components/schemas/RoomServiceStatus'
+        beds:
+          items:
+            $ref: '#/components/schemas/Bed'
+          type: array
+          title: Beds
+        price:
+          $ref: '#/components/schemas/NightlyPrice'
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - hotel_id
+      - label
+      - description
+      - tier
+      - number_of_bathrooms
+      - service_status
+      - beds
+      - price
+      title: Room
+      description: Room configuration with its current price; availability depends
+        on dates.
+    RoomId:
+      type: string
+      pattern: ^room_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    RoomServiceStatus:
+      type: string
+      enum:
+      - room_service_status_in_service
+      - room_service_status_out_of_service
+      title: RoomServiceStatus
+      description: Room condition, independent of reservations and temporary holds.
+    SearchRoomsRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/SearchRoomsRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: SearchRoomsRequest
+    SearchRoomsRequestPayload:
+      properties:
+        cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+          description: Continue the same query.
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          default: 50
+        hotel_id:
+          anyOf:
+          - $ref: '#/components/schemas/HotelId'
+          - type: 'null'
+        ids:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/RoomId'
+            type: array
+            minItems: 1
+          - type: 'null'
+          title: Ids
+        tier:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tier
+        bed_types:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/BedType'
+            type: array
+            minItems: 1
+          - type: 'null'
+          title: Bed Types
+          description: Match rooms containing every listed bed type.
+        number_of_beds:
+          anyOf:
+          - $ref: '#/components/schemas/NumberRange'
+          - type: 'null'
+        number_of_bathrooms:
+          anyOf:
+          - $ref: '#/components/schemas/NumberRange'
+          - type: 'null'
+        nightly_amount:
+          anyOf:
+          - $ref: '#/components/schemas/AmountRange'
+          - type: 'null'
+        service_statuses:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/RoomServiceStatus'
+            type: array
+            minItems: 1
+          - type: 'null'
+          title: Service Statuses
+          description: Match any listed service status.
+        availability_window:
+          anyOf:
+          - $ref: '#/components/schemas/AvailabilityWindow'
+          - type: 'null'
+          description: Require an in-service room with no reservation or live hold
+            overlapping this interval.
+      additionalProperties: false
+      type: object
+      title: SearchRoomsRequestPayload
+      description: Combine supplied filters; omit availability_window to ignore dated
+        availability.
+    UpdateGuestFieldMask:
+      type: string
+      enum:
+      - first_name
+      - last_name
+      - preferred_name
+      - age
+      - dietary_requirements
+      - phone
+      - email
+      - contact_preference
+      title: UpdateGuestFieldMask
+      description: Allowed update_mask entries; values must match payload field names
+        exactly.
+    UpdateGuestRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/UpdateGuestRequestPayload'
+        update_mask:
+          items:
+            $ref: '#/components/schemas/UpdateGuestFieldMask'
+          type: array
+          minItems: 1
+          title: Update Mask
+          description: Unique field names, matching exactly the supplied payload fields.
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      - update_mask
+      title: UpdateGuestRequest
+    UpdateGuestRequestPayload:
+      properties:
+        first_name:
+          type: string
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          minLength: 1
+          title: Last Name
+        preferred_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Preferred Name
+        age:
+          type: integer
+          minimum: 0.0
+          title: Age
+        dietary_requirements:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dietary Requirements
+        phone:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Phone
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        contact_preference:
+          anyOf:
+          - $ref: '#/components/schemas/ContactPreference'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: UpdateGuestRequestPayload
+      description: Omitted fields stay unchanged; null clears only nullable guest
+        fields.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
