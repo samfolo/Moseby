@@ -6,23 +6,29 @@ supply paths, methods, operation IDs and proposed permission metadata. Generate
 No Python client is needed. TypeScript generation is a later consumer of OpenAPI.
 
 The first contract sample and its conventions were approved before extending the models.
+The [next domain review](domain-contract-review.md) lists the added models and their
+proposed lifecycle details. This document records the approved foundation.
 
 ## First review slice
 
 | Operation | Proposed permission | Purpose |
 | --- | --- | --- |
-| `QUERY /rooms` | `rooms:read` | Search configuration, nightly prices and dated availability |
-| `GET /rooms/{id}` | `rooms:read` | Read configuration with its current nightly price |
-| `GET /guests/{id}` | `guests:read` | Read one guest for one stay |
-| `PATCH /guests/{id}` | `guests:write` | Change only the explicitly masked guest fields |
+| `QUERY /rooms` | `Moseby.rooms:read` | Search configuration, nightly prices and dated availability |
+| `GET /rooms/{id}` | `Moseby.rooms:read` | Read configuration with its current nightly price |
+| `GET /guests/{id}` | `Moseby.guests:read` | Read one guest for one stay |
+| `PATCH /guests/{id}` | `Moseby.guests:write` | Change only the explicitly masked guest fields |
 
 This is a naming and generation sample, not the full API catalogue. The other
 resources remain in [the API review](api-overview.md). Every draft handler raises
 501. There is no database access, permission enforcement or running server here.
 
-`x-permissions.allOf` means every listed capability is required. The proposed
-`x-access-policy: staff-hotel` additionally limits records through their hotel
-association. These are our extensions, not built-in FastAPI authorization. A
+`x-permissions.anyOf` accepts either the named resource capability or its broad
+`Moseby:read` / `Moseby:write` grant. Broad grants preserve all data scopes. The proposed
+`x-hotel-scoped: true` additionally limits records through their hotel
+association. False removes that ownership filter for shared venues/activities;
+it does not remove the permission requirement. These are our extensions, not
+built-in FastAPI authorization. The [permission list](permissions-and-tools.md#current-domain-permissions)
+covers every capability declared by the current routes. A
 filter cannot broaden access. Thread creator/snapshot checks still follow the
 existing permission contract when those routes are added.
 
@@ -51,11 +57,20 @@ existing permission contract when those routes are added.
 ## Shared values and filters
 
 - Named `StrEnum` classes constrain bed types and contact preferences. Wire values
-  carry prefixes, such as `bed_type_king` and `contact_preference_email`. Python
+  carry prefixes, such as `BED_TYPE_KING` and `CONTACT_PREFERENCE_EMAIL`. Python
   already scopes members as `BedType.KING`; the wire prefixes help when reading JSON.
-- `UpdateGuestFieldMask` documents the fields a guest update accepts. Its values
-  remain the actual field names, such as `dietary_requirements`, so the mask maps
-  directly to the payload. This enum deliberately has no wire-value prefix.
+- Domain enum wire values use SCREAMING_SNAKE_CASE. Field masks instead name
+  payload fields exactly: `dietary_requirements`. `UpdateGuestFieldMask` is a
+  constrained string type, with no case conversion or domain enum.
+- Descriptive enums support an explicit `UNKNOWN`: bed type, room tier, activity
+  type and staff role. Missing required fields and unrecognised strings still
+  fail validation; there is no automatic fallback. Unknown staff roles grant
+  no permissions, and unknown bed types do not establish sleeping capacity.
+  Booking/service/classification states, pricing units and contact channels keep
+  their defined choices; uncertainty must not silently select behaviour.
+- A room has one required `tier`: `ROOM_TIER_STANDARD`, `ROOM_TIER_VIP` or
+  `ROOM_TIER_UNKNOWN`. Search uses optional `tiers`, matching any listed value.
+  Omission means no tier filter; an empty list is invalid.
 - `SearchRoomsRequestPayload` and `UpdateGuestRequestPayload` follow the selected
   operation naming convention. Resource models remain distinct from requests.
 - `Amount` contains `value` in integer minor units and `currency`. Currency is an
@@ -68,10 +83,12 @@ existing permission contract when those routes are added.
   Filters may have negative bounds; stored nightly prices cannot be negative.
 - `DateRange` uses `min_date` / `max_date` for offset-aware timestamps. The lower
   bound is inclusive and upper bound exclusive; a bounded interval must have
-  positive duration. It is a range of instants, not calendar-only dates.
-  `AvailabilityWindow` requires both bounds. UTC normalization belongs in the
-  service, and this does not decide hotel-local billing nights or timestamp storage.
-- A supplied `availability_window` means return only rooms available throughout it:
+  positive duration. Both bounds are required in this draft; one-sided date
+  searches are not currently exposed. There is one DateRange model, including for
+  reservations. Keys inherit reservation dates rather than storing their own.
+  UTC normalization belongs in the service; this
+  does not decide hotel-local billing nights or timestamp storage.
+- A supplied `availability_date_range` means return only rooms available throughout it:
   in service, with no overlapping reservation or live hold. Without it, no dated
   availability filter applies. The old `available` boolean and `RoomMatch` wrapper
   are removed; search returns rooms. Searching never holds capacity.
@@ -83,15 +100,18 @@ The sample is approved; the explicit remaining details below are still open:
 - The initial bed vocabulary is single, twin, double, queen and king. It is a demo
   catalogue, not an international sizing standard. Dimensions, single/twin meaning
   and capacity mapping still need agreement; no sleeping-capacity formula is added.
-- Room search combines filters. `bed_types` requires every listed type, without
-  specifying quantities. IDs are a search filter, not the ordered batch-get contract.
+- Search ID fields use arrays: OR within each ID list, AND across filters. Each
+  list accepts 1–100 IDs; omitted filters add no restriction, and duplicates must
+  not multiply results. Pagination is one flat list with one cursor. `bed_types`
+  retains its distinct requirement to contain every listed bed type; it is not
+  an identity filter. ID search is not the ordered batch-get contract.
 - `number_of_beds` and `number_of_bathrooms` take number ranges. `nightly_amount`
   takes an amount range for current nightly prices, not a total-stay quote.
 - `service_status` replaces the public `in_service` boolean with a named
-  enum: `room_service_status_in_service` or `room_service_status_out_of_service`.
+  enum: `ROOM_SERVICE_STATUS_IN_SERVICE` or `ROOM_SERVICE_STATUS_OUT_OF_SERVICE`.
   `service_statuses` matches any listed value. This preserves the two conditions
   already agreed; it does not make held/booked/available permanent room states.
-  Combining an availability window with only out-of-service rooms matches nothing.
+  Combining an availability date range with only out-of-service rooms matches nothing.
   This contract choice is accepted; database representation remains unchanged.
 - Pagination proposes a default of 50, maximum 100 and opaque cursors tied to the
   same query. Ordering and cursor implementation remain unimplemented.
@@ -131,7 +151,8 @@ FastAPI routes and validates QUERY bodies, but emits OpenAPI 3.1.0 and omits the
 QUERY request body from that document. The draft explicitly references the
 already-generated Pydantic request schema in `openapi_extra.requestBody` and
 exports version 3.2.1. Merely changing the version would not fix the missing body.
-This small compatibility annotation is isolated to the QUERY route.
+This small compatibility annotation now lives in `route_metadata.query_body` so
+all QUERY declarations retain their required request body consistently.
 
 FastAPI is used for this contract draft. This check does not establish broad 3.2
 feature support, browser/proxy compatibility, documentation-UI support or TypeScript

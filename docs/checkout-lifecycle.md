@@ -144,9 +144,10 @@ matching 50 goodwill adjustment leaves zero extra payment. This is an example
 of explicit pricing information, not a selected discount engine or accounting
 policy. Additional payment must not automatically be required for every move.
 
-**Recommendation:** keep the booking confirmed while the proposed change is
-pending. Track the change separately. Whether to remove `under_revision` from
-the booking entirely is still open. A failed change does not invalidate the stay.
+**Current contract direction:** keep the booking confirmed while the proposed
+change is pending and track the change separately. The consistency review removes
+`under_revision` from the booking enum. A failed change does not invalidate the stay.
+The amendment payload and detailed payment/hold procedure remain to be reviewed.
 
 ## Party membership and whole-booking cancellation
 
@@ -188,9 +189,9 @@ addresses live and backup copies. None of these notes establishes compliance.
    payment retry/late-result handling before choosing cleanup timing.
 3. Choose checkout storage and the deletion delay after abandonment. Preserve
    enough linkage to resolve outstanding payment attempts.
-4. Approve or change the room-swap procedure and decide whether `under_revision`
-   remains a booking status. Technical `error` is already rejected as a domain
-   status.
+4. Approve or change the detailed room-swap procedure. The current contract keeps
+   the accepted booking confirmed during amendment preparation; `under_revision`
+   and technical `error` are excluded from its status enum.
 
 Sections C onward are intentionally not reopened in this pass. No SQL changes
 have been made; the earlier SQL still contains `error` and `under_revision`.

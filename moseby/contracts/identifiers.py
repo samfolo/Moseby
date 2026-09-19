@@ -4,7 +4,6 @@ from typing import Annotated
 
 from pydantic import Field
 
-
 ULID_PATTERN = r"[0-7][0-9A-HJKMNP-TV-Z]{25}"
 
 type HotelId = Annotated[str, Field(pattern=rf"^hotel_{ULID_PATTERN}$")]
@@ -13,4 +12,15 @@ type BedId = Annotated[str, Field(pattern=rf"^bed_{ULID_PATTERN}$")]
 type PriceId = Annotated[str, Field(pattern=rf"^price_{ULID_PATTERN}$")]
 type GuestId = Annotated[str, Field(pattern=rf"^guest_{ULID_PATTERN}$")]
 type PartyId = Annotated[str, Field(pattern=rf"^party_{ULID_PATTERN}$")]
-
+type StaffMemberId = Annotated[str, Field(pattern=rf"^staff_member_{ULID_PATTERN}$")]
+type VenueId = Annotated[str, Field(pattern=rf"^venue_{ULID_PATTERN}$")]
+type BookingId = Annotated[str, Field(pattern=rf"^booking_{ULID_PATTERN}$")]
+type RoomReservationId = Annotated[
+    str, Field(pattern=rf"^room_reservation_{ULID_PATTERN}$")
+]
+type RoomKeyId = Annotated[str, Field(pattern=rf"^room_key_{ULID_PATTERN}$")]
+type PartyDetailId = Annotated[str, Field(pattern=rf"^party_detail_{ULID_PATTERN}$")]
+type ActivityId = Annotated[str, Field(pattern=rf"^activity_{ULID_PATTERN}$")]
+type ActivityReservationId = Annotated[
+    str, Field(pattern=rf"^activity_reservation_{ULID_PATTERN}$")
+]

@@ -99,10 +99,11 @@ A confirmed booking has:
 - Freeform cancellation reason when relevant.
 
 There is no primary guest reference and no owning staff member. Confirmed
-replaces settled; under revision replaces under review. Confirmed can become
-cancelled or completed. Whether under revision remains a booking status is now
-being reconsidered. Technical errors belong to operations, not the booking.
-The existing SQL still has `error`; remove it in the next DDL revision.
+replaces settled. The current contract has confirmed, cancelled and completed;
+a proposed amendment keeps the booking confirmed until it commits. The earlier
+under-revision proposal is removed from that enum. Technical errors belong to
+operations. SQL still has both `error` and `under_revision`; remove them in the
+next DDL revision.
 
 Cancellation is now terminal: a cancelled booking cannot be reinstated. Booking
 again creates a different booking. History retains the cancellation, but no
@@ -407,10 +408,15 @@ issue another key for the same reservation. Effective access must also check the
 current reservation and booking; a later stay cannot reactivate an old key.
 
 Current details are a key ID, a room-reservation ID, an optional human-readable
-code, effective-from/effective-to times, `deactivated_at` and a deactivation
-reason when relevant. The effective times are independent of room-reservation times because
-keys can be issued or replaced during a stay. The latest choice is a freeform
-deactivation reason and no separate active/inactive status column.
+code, `deactivated_at`, a freeform deactivation reason when relevant, and a derived
+`effective` response. Keys have no independent dates. Access requires a confirmed
+booking, an uncancelled reservation whose current date range includes now, and
+no explicit key revocation. An extension updates access automatically. Parent
+cancellation makes access ineffective without rewriting each key; `deactivated_at`
+records explicit key revocation only. Revoked keys stay revoked after extensions.
+The room association of a reservation stays fixed; a room move replaces the
+allocation and cannot transfer old keys to the new room. No active/inactive
+status column is needed.
 
 Keeping disabled keys is now being questioned, superseding the earlier
 append-only preference. We still need to settle how revocation is represented
@@ -482,7 +488,7 @@ or a payment ledger. Proposed details are:
 - Party ID.
 - Guest ID.
 - Scheduled activity reference.
-- Status: active or cancelled.
+- Cancellation boolean, independent of whether the activity has ended.
 - Cancellation reason, required when cancelled.
 
 The expected rule is that a reservation's guest belongs to its referenced party;
@@ -511,7 +517,7 @@ Keep an append-only activity-reservation history. Cancellation is terminal for
 an individual reservation. Rebooking creates a new reservation ID and must pass
 current capacity checks. The SQL draft uses full revisions, but does not yet
 enforce terminal activity cancellation. Attendance tracking is outside scope;
-active does not mean that the guest actually turned up.
+a non-cancelled reservation does not prove the guest actually turned up.
 
 The latest cancellation direction is to retain activity history and include
 parent-booking validity when deciding whether a reservation is effective. This
@@ -529,9 +535,11 @@ the need to check and commit safely together. SQLite still permits only one
 writer at a time; see its [transaction documentation](https://www.sqlite.org/lang_transaction.html).
 Rebooking requires a new reservation and a fresh capacity check.
 
-Require a reason on an explicit cancellation record. We still need to settle
-whether active records must have no reason. Where a parent cancellation makes
-the activity ineffective, the parent supplies that cancellation history.
+Require a reason on an explicit cancellation record and no reason on a
+non-cancelled reservation. Where parent cancellation makes an activity reservation
+ineffective, the parent supplies that cancellation history. At most one effective
+reservation per guest and scheduled activity is allowed; historical cancellations
+remain available without reserving places.
 
 For reads, an ordinary view can select the latest full revision per reservation
 if that is the chosen history format. A view names a query; it does not cache

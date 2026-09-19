@@ -2,10 +2,932 @@
 openapi: 3.2.1
 info:
   title: Moseby contract draft
-  description: First review slice. Permission annotations are proposals, not enforcement.
+  description: Domain contract review. Permission annotations are proposals, not enforcement.
     Operations return 501.
   version: 0.1.0
 paths:
+  /hotels:
+    get:
+      summary: List Hotels
+      operationId: listHotels
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Hotel_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.hotels:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /hotels/{id}:
+    get:
+      summary: Get Hotel
+      operationId: getHotel
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^hotel_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Hotel'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.hotels:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /staff-members:
+    get:
+      summary: List Staff Members
+      operationId: listStaffMembers
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_StaffMember_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.staff-members:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /staff-members/{id}:
+    get:
+      summary: Get Staff Member
+      operationId: getStaffMember
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^staff_member_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffMember'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.staff-members:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /venues:
+    get:
+      summary: List Venues
+      operationId: listVenues
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Venue_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.venues:read
+        - Moseby:read
+      x-hotel-scoped: false
+  /venues/{id}:
+    get:
+      summary: Get Venue
+      operationId: getVenue
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^venue_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Venue'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.venues:read
+        - Moseby:read
+      x-hotel-scoped: false
+  /bookings:
+    get:
+      summary: List Bookings
+      operationId: listBookings
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Booking_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.bookings:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /bookings/{id}:
+    get:
+      summary: Get Booking
+      operationId: getBooking
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^booking_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Booking'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.bookings:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /parties/{id}:
+    get:
+      summary: Get Party
+      operationId: getParty
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^party_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Party'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.guests:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /parties:
+    query:
+      summary: Search Parties
+      operationId: searchParties
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Party_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.guests:read
+        - Moseby:read
+      x-hotel-scoped: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchPartiesRequest'
+  /guests:
+    get:
+      summary: List Guests
+      operationId: listGuests
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Guest_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.guests:read
+        - Moseby:read
+      x-hotel-scoped: true
+    query:
+      summary: Search Guests
+      operationId: searchGuests
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Guest_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.guests:read
+        - Moseby:read
+      x-hotel-scoped: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchGuestsRequest'
+  /party-details/{id}:
+    get:
+      summary: Get Party Detail
+      operationId: getPartyDetail
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^party_detail_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartyDetail'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.guests:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /party-details:
+    post:
+      summary: Create Party Detail
+      description: Record a note about a party and identify any guests mentioned.
+      operationId: createPartyDetail
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePartyDetailRequest'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartyDetail'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.guests:write
+        - Moseby:write
+      x-hotel-scoped: true
+    query:
+      summary: Search Party Details
+      operationId: searchPartyDetails
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_PartyDetail_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.guests:read
+        - Moseby:read
+      x-hotel-scoped: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchPartyDetailsRequest'
+  /room-keys:
+    get:
+      summary: List Room Keys
+      operationId: listRoomKeys
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_RoomKey_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.bookings:read
+        - Moseby:read
+      x-hotel-scoped: true
+    post:
+      summary: Issue Room Key
+      operationId: issueRoomKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueRoomKeyRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomKey'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.bookings:write
+        - Moseby:write
+      x-hotel-scoped: true
+  /room-keys/{id}:
+    get:
+      summary: Get Room Key
+      operationId: getRoomKey
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^room_key_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomKey'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.bookings:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /room-keys/{id}:deactivate:
+    post:
+      summary: Deactivate Room Key
+      operationId: deactivateRoomKey
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^room_key_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeactivateRoomKeyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomKey'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.bookings:write
+        - Moseby:write
+      x-hotel-scoped: true
+  /activities:
+    get:
+      summary: List Activities
+      operationId: listActivities
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Activity_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.activities:read
+        - Moseby:read
+      x-hotel-scoped: false
+    query:
+      summary: Search Activities
+      operationId: searchActivities
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_Activity_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.activities:read
+        - Moseby:read
+      x-hotel-scoped: false
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchActivitiesRequest'
+  /activities/{id}:
+    get:
+      summary: Get Activity
+      operationId: getActivity
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^activity_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Activity'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.activities:read
+        - Moseby:read
+      x-hotel-scoped: false
+  /activity-reservations:
+    get:
+      summary: List Activity Reservations
+      operationId: listActivityReservations
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_ActivityReservation_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.activities:read
+        - Moseby:read
+      x-hotel-scoped: true
+    query:
+      summary: Search Activity Reservations
+      operationId: searchActivityReservations
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_ActivityReservation_'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.activities:read
+        - Moseby:read
+      x-hotel-scoped: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchActivityReservationsRequest'
+  /activity-reservations/{id}:
+    get:
+      summary: Get Activity Reservation
+      operationId: getActivityReservation
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^activity_reservation_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityReservation'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.activities:read
+        - Moseby:read
+      x-hotel-scoped: true
+  /activity-reservations/{id}:cancel:
+    post:
+      summary: Cancel Activity Reservation
+      operationId: cancelActivityReservation
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^activity_reservation_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelActivityReservationRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActivityReservation'
+        '501':
+          description: Contract draft; operation is not implemented.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - Moseby.activities:write
+        - Moseby:write
+      x-hotel-scoped: true
   /rooms:
     query:
       summary: Search rooms
@@ -28,9 +950,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
-        allOf:
-        - rooms:read
-      x-access-policy: staff-hotel
+        anyOf:
+        - Moseby.rooms:read
+        - Moseby:read
+      x-hotel-scoped: true
       requestBody:
         required: true
         content:
@@ -65,9 +988,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
-        allOf:
-        - rooms:read
-      x-access-policy: staff-hotel
+        anyOf:
+        - Moseby.rooms:read
+        - Moseby:read
+      x-hotel-scoped: true
   /guests/{id}:
     get:
       summary: Read a guest
@@ -96,9 +1020,10 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
-        allOf:
-        - guests:read
-      x-access-policy: staff-hotel
+        anyOf:
+        - Moseby.guests:read
+        - Moseby:read
+      x-hotel-scoped: true
     patch:
       summary: Update a guest
       description: Apply the masked fields to the existing guest and validate the
@@ -134,11 +1059,198 @@ paths:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
-        allOf:
-        - guests:write
-      x-access-policy: staff-hotel
+        anyOf:
+        - Moseby.guests:write
+        - Moseby:write
+      x-hotel-scoped: true
 components:
   schemas:
+    Activity:
+      properties:
+        id:
+          $ref: '#/components/schemas/ActivityId'
+        venue_id:
+          $ref: '#/components/schemas/VenueId'
+        title:
+          type: string
+          minLength: 1
+          title: Title
+        type:
+          $ref: '#/components/schemas/ActivityType'
+        description:
+          type: string
+          title: Description
+        date_range:
+          $ref: '#/components/schemas/DateRange'
+        capacity:
+          anyOf:
+          - type: integer
+            minimum: 0.0
+          - type: 'null'
+          title: Capacity
+          description: Null means no activity-level attendance limit.
+        booking_size:
+          $ref: '#/components/schemas/BookingSize'
+        minimum_age:
+          type: integer
+          minimum: 0.0
+          title: Minimum Age
+        price:
+          $ref: '#/components/schemas/ActivityPrice'
+        reserved_places:
+          type: integer
+          minimum: 0.0
+          title: Reserved Places
+          description: Derived count of effective guest reservations, excluding historical
+            revisions.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - venue_id
+      - title
+      - type
+      - description
+      - date_range
+      - capacity
+      - booking_size
+      - minimum_age
+      - price
+      - reserved_places
+      - created_at
+      title: Activity
+      description: One dated event; reservations and venue sharing do not create recurring
+        templates.
+    ActivityId:
+      type: string
+      pattern: ^activity_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    ActivityPrice:
+      properties:
+        price_id:
+          $ref: '#/components/schemas/PriceId'
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        amount:
+          $ref: '#/components/schemas/NonNegativeAmount'
+        unit:
+          $ref: '#/components/schemas/ActivityPriceUnit'
+      additionalProperties: false
+      type: object
+      required:
+      - price_id
+      - revision
+      - amount
+      - unit
+      title: ActivityPrice
+    ActivityPriceUnit:
+      type: string
+      enum:
+      - ACTIVITY_PRICE_UNIT_PER_GUEST
+      title: ActivityPriceUnit
+      description: Pricing unit for an activity rate; the demo currently charges per
+        guest.
+    ActivityReservation:
+      properties:
+        id:
+          $ref: '#/components/schemas/ActivityReservationId'
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        guest_id:
+          $ref: '#/components/schemas/GuestId'
+        party_id:
+          $ref: '#/components/schemas/PartyId'
+        activity:
+          $ref: '#/components/schemas/ReservedActivity'
+        cancelled:
+          type: boolean
+          title: Cancelled
+          description: Explicit cancellation; an ended activity does not change this
+            flag.
+        cancellation_reason:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cancellation Reason
+        agreed_price:
+          $ref: '#/components/schemas/ActivityPrice'
+        effective:
+          type: boolean
+          title: Effective
+          description: True when not cancelled and the parent booking permits it;
+            independent of whether the activity has ended.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - revision
+      - guest_id
+      - party_id
+      - activity
+      - cancelled
+      - cancellation_reason
+      - agreed_price
+      - effective
+      - created_at
+      title: ActivityReservation
+      description: One guest's latest reservation revision, attributed to their party.
+    ActivityReservationId:
+      type: string
+      pattern: ^activity_reservation_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    ActivityType:
+      type: string
+      enum:
+      - ACTIVITY_TYPE_UNKNOWN
+      - ACTIVITY_TYPE_TENNIS
+      - ACTIVITY_TYPE_POTTERY
+      - ACTIVITY_TYPE_GUIDED_TOUR
+      title: ActivityType
+      description: The initial curated activity catalogue.
+    Address:
+      properties:
+        line_1:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Line 1
+        line_2:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Line 2
+        city:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: City
+        postcode:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Postcode
+        country_code:
+          anyOf:
+          - type: string
+            pattern: ^[A-Z]{2}$
+          - type: 'null'
+          title: Country Code
+          description: Two-letter ISO 3166-1 country code.
+      additionalProperties: false
+      type: object
+      title: Address
+      description: Postal location; fields may be absent where they do not apply.
     AmountRange:
       properties:
         min_value:
@@ -159,25 +1271,6 @@ components:
       - currency
       title: AmountRange
       description: Inclusive minor-unit bounds, compared only within the given currency.
-    AvailabilityWindow:
-      properties:
-        min_date:
-          type: string
-          format: date-time
-          title: Min Date
-          description: Inclusive start of required availability.
-        max_date:
-          type: string
-          format: date-time
-          title: Max Date
-          description: Exclusive end of required availability.
-      additionalProperties: false
-      type: object
-      required:
-      - min_date
-      - max_date
-      title: AvailabilityWindow
-      description: Both bounds are required to find rooms free for the entire interval.
     Bed:
       properties:
         id:
@@ -196,26 +1289,206 @@ components:
     BedType:
       type: string
       enum:
-      - bed_type_single
-      - bed_type_twin
-      - bed_type_double
-      - bed_type_queen
-      - bed_type_king
+      - BED_TYPE_UNKNOWN
+      - BED_TYPE_SINGLE
+      - BED_TYPE_TWIN
+      - BED_TYPE_DOUBLE
+      - BED_TYPE_QUEEN
+      - BED_TYPE_KING
       title: BedType
       description: Supported bed categories; dimensions and sleeping capacity are
         defined separately.
+    Booking:
+      properties:
+        id:
+          $ref: '#/components/schemas/BookingId'
+        hotel_id:
+          $ref: '#/components/schemas/HotelId'
+        name:
+          type: string
+          minLength: 1
+          title: Name
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+          description: Revision supplying the current booking status.
+        status:
+          $ref: '#/components/schemas/BookingStatus'
+        cancellation_reason:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cancellation Reason
+        room_reservations:
+          items:
+            $ref: '#/components/schemas/RoomReservation'
+          type: array
+          minItems: 1
+          title: Room Reservations
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - hotel_id
+      - name
+      - revision
+      - status
+      - cancellation_reason
+      - room_reservations
+      - created_at
+      title: Booking
+      description: A confirmed stay; technical failures belong to operations, not
+        booking status.
+    BookingId:
+      type: string
+      pattern: ^booking_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    BookingSize:
+      properties:
+        min_value:
+          type: integer
+          minimum: 1.0
+          title: Min Value
+        max_value:
+          type: integer
+          minimum: 1.0
+          title: Max Value
+      additionalProperties: false
+      type: object
+      required:
+      - min_value
+      - max_value
+      title: BookingSize
+      description: Allowed size of a group request, not the size of each reservation
+        row.
+    BookingStatus:
+      type: string
+      enum:
+      - BOOKING_STATUS_CONFIRMED
+      - BOOKING_STATUS_CANCELLED
+      - BOOKING_STATUS_COMPLETED
+      title: BookingStatus
+      description: A proposed amendment leaves the accepted booking confirmed until
+        committed.
+    CancelActivityReservationRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/CancelActivityReservationRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: CancelActivityReservationRequest
+    CancelActivityReservationRequestPayload:
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: CancelActivityReservationRequestPayload
     ContactPreference:
       type: string
       enum:
-      - contact_preference_phone
-      - contact_preference_email
+      - CONTACT_PREFERENCE_PHONE
+      - CONTACT_PREFERENCE_EMAIL
       title: ContactPreference
       description: Preferred contact channel; null on the guest selects all supplied
         channels.
+    CreatePartyDetailRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/CreatePartyDetailRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: CreatePartyDetailRequest
+    CreatePartyDetailRequestPayload:
+      properties:
+        party_id:
+          $ref: '#/components/schemas/PartyId'
+        text:
+          type: string
+          minLength: 1
+          title: Text
+          description: Record the evidence; the service resolves guest references.
+      additionalProperties: false
+      type: object
+      required:
+      - party_id
+      - text
+      title: CreatePartyDetailRequestPayload
     Currency:
       type: string
       pattern: ^[A-Z]{3}$
       description: ISO 4217 currency code, such as GBP.
+    DateRange:
+      properties:
+        min_date:
+          type: string
+          format: date-time
+          title: Min Date
+          description: Inclusive lower bound.
+        max_date:
+          type: string
+          format: date-time
+          title: Max Date
+          description: Exclusive upper bound.
+      additionalProperties: false
+      type: object
+      required:
+      - min_date
+      - max_date
+      title: DateRange
+      description: A bounded interval of instants, including min_date and excluding
+        max_date.
+    DeactivateRoomKeyRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/DeactivateRoomKeyRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: DeactivateRoomKeyRequest
+    DeactivateRoomKeyRequestPayload:
+      properties:
+        reason:
+          type: string
+          minLength: 1
+          title: Reason
+      additionalProperties: false
+      type: object
+      required:
+      - reason
+      title: DeactivateRoomKeyRequestPayload
     Guest:
       properties:
         id:
@@ -282,6 +1555,16 @@ components:
     GuestId:
       type: string
       pattern: ^guest_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    GuestReferenceStatus:
+      type: string
+      enum:
+      - GUEST_REFERENCE_STATUS_PENDING
+      - GUEST_REFERENCE_STATUS_RESOLVED
+      - GUEST_REFERENCE_STATUS_AMBIGUOUS
+      - GUEST_REFERENCE_STATUS_FAILED
+      title: GuestReferenceStatus
+      description: Proposed outcomes distinguish an empty resolved result from unresolved
+        references.
     HTTPValidationError:
       properties:
         detail:
@@ -291,9 +1574,110 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
+    Hotel:
+      properties:
+        id:
+          $ref: '#/components/schemas/HotelId'
+        name:
+          type: string
+          minLength: 1
+          title: Name
+        address:
+          $ref: '#/components/schemas/Address'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - address
+      - created_at
+      title: Hotel
+      description: The location owning a booking and its rooms.
     HotelId:
       type: string
       pattern: ^hotel_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    IdFilter_ActivityId_:
+      items:
+        $ref: '#/components/schemas/ActivityId'
+      type: array
+      maxItems: 100
+      minItems: 1
+      description: Match any listed ID; duplicates do not multiply results.
+    IdFilter_BookingId_:
+      items:
+        $ref: '#/components/schemas/BookingId'
+      type: array
+      maxItems: 100
+      minItems: 1
+      description: Match any listed ID; duplicates do not multiply results.
+    IdFilter_GuestId_:
+      items:
+        $ref: '#/components/schemas/GuestId'
+      type: array
+      maxItems: 100
+      minItems: 1
+      description: Match any listed ID; duplicates do not multiply results.
+    IdFilter_HotelId_:
+      items:
+        $ref: '#/components/schemas/HotelId'
+      type: array
+      maxItems: 100
+      minItems: 1
+      description: Match any listed ID; duplicates do not multiply results.
+    IdFilter_PartyId_:
+      items:
+        $ref: '#/components/schemas/PartyId'
+      type: array
+      maxItems: 100
+      minItems: 1
+      description: Match any listed ID; duplicates do not multiply results.
+    IdFilter_RoomId_:
+      items:
+        $ref: '#/components/schemas/RoomId'
+      type: array
+      maxItems: 100
+      minItems: 1
+      description: Match any listed ID; duplicates do not multiply results.
+    IdFilter_VenueId_:
+      items:
+        $ref: '#/components/schemas/VenueId'
+      type: array
+      maxItems: 100
+      minItems: 1
+      description: Match any listed ID; duplicates do not multiply results.
+    IssueRoomKeyRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/IssueRoomKeyRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: IssueRoomKeyRequest
+    IssueRoomKeyRequestPayload:
+      properties:
+        room_reservation_id:
+          $ref: '#/components/schemas/RoomReservationId'
+        code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code
+      additionalProperties: false
+      type: object
+      required:
+      - room_reservation_id
+      title: IssueRoomKeyRequestPayload
     NightlyPrice:
       properties:
         price_id:
@@ -345,6 +1729,158 @@ components:
       type: object
       title: NumberRange
       description: Inclusive integer bounds; omit either bound for an open-ended range.
+    Page_ActivityReservation_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ActivityReservation'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[ActivityReservation]
+    Page_Activity_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Activity'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[Activity]
+    Page_Booking_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Booking'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[Booking]
+    Page_Guest_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Guest'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[Guest]
+    Page_Hotel_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Hotel'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[Hotel]
+    Page_PartyDetail_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/PartyDetail'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[PartyDetail]
+    Page_Party_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Party'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[Party]
+    Page_RoomKey_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/RoomKey'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[RoomKey]
     Page_Room_:
       properties:
         items:
@@ -364,12 +1900,133 @@ components:
       - items
       - next_cursor
       title: Page[Room]
+    Page_StaffMember_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/StaffMember'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[StaffMember]
+    Page_Venue_:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Venue'
+          type: array
+          title: Items
+        next_cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Next Cursor
+          description: Opaque continuation token; null means there are no more results.
+      additionalProperties: false
+      type: object
+      required:
+      - items
+      - next_cursor
+      title: Page[Venue]
+    Party:
+      properties:
+        id:
+          $ref: '#/components/schemas/PartyId'
+        booking_id:
+          $ref: '#/components/schemas/BookingId'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - booking_id
+      - created_at
+      title: Party
+      description: The party for one confirmed booking; guests reference this party.
+    PartyDetail:
+      properties:
+        id:
+          $ref: '#/components/schemas/PartyDetailId'
+        party_id:
+          $ref: '#/components/schemas/PartyId'
+        text:
+          type: string
+          minLength: 1
+          title: Text
+        referenced_guest_ids:
+          items:
+            $ref: '#/components/schemas/GuestId'
+          type: array
+          title: Referenced Guest Ids
+          description: Classifier-selected members of this party, validated by the
+            service.
+        reference_format_version:
+          type: integer
+          const: 1
+          title: Reference Format Version
+          description: Version of the stored reference format.
+          default: 1
+        reference_status:
+          $ref: '#/components/schemas/GuestReferenceStatus'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - party_id
+      - text
+      - referenced_guest_ids
+      - reference_status
+      - created_at
+      title: PartyDetail
+      description: Reported evidence about a party; inferred references do not update
+        guest facts.
+    PartyDetailId:
+      type: string
+      pattern: ^party_detail_[0-7][0-9A-HJKMNP-TV-Z]{25}$
     PartyId:
       type: string
       pattern: ^party_[0-7][0-9A-HJKMNP-TV-Z]{25}$
     PriceId:
       type: string
       pattern: ^price_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    ReservedActivity:
+      properties:
+        id:
+          $ref: '#/components/schemas/ActivityId'
+        venue_id:
+          $ref: '#/components/schemas/VenueId'
+        title:
+          type: string
+          minLength: 1
+          title: Title
+        date_range:
+          $ref: '#/components/schemas/DateRange'
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - venue_id
+      - title
+      - date_range
+      title: ReservedActivity
+      description: Current activity information needed to display a guest's itinerary.
     Room:
       properties:
         id:
@@ -385,10 +2042,7 @@ components:
           type: string
           title: Description
         tier:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Tier
+          $ref: '#/components/schemas/RoomTier'
         number_of_bathrooms:
           type: integer
           minimum: 0.0
@@ -420,13 +2074,384 @@ components:
     RoomId:
       type: string
       pattern: ^room_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    RoomKey:
+      properties:
+        id:
+          $ref: '#/components/schemas/RoomKeyId'
+        room_reservation_id:
+          $ref: '#/components/schemas/RoomReservationId'
+        effective:
+          type: boolean
+          title: Effective
+          description: 'Access now: not deactivated, with a confirmed booking and
+            an uncancelled reservation whose current date range includes now.'
+        code:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Code
+          description: Optional demo key label; not a live door credential.
+        deactivated_at:
+          anyOf:
+          - type: string
+            format: date-time
+          - type: 'null'
+          title: Deactivated At
+          description: Explicit key revocation time; parent cancellation does not
+            set this.
+        deactivation_reason:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Deactivation Reason
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - room_reservation_id
+      - effective
+      - code
+      - deactivated_at
+      - deactivation_reason
+      - created_at
+      title: RoomKey
+      description: Anonymous access tied to one reservation; a later stay cannot revive
+        this key.
+    RoomKeyId:
+      type: string
+      pattern: ^room_key_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    RoomReservation:
+      properties:
+        id:
+          $ref: '#/components/schemas/RoomReservationId'
+        revision:
+          type: integer
+          minimum: 1.0
+          title: Revision
+        room_id:
+          $ref: '#/components/schemas/RoomId'
+        date_range:
+          $ref: '#/components/schemas/DateRange'
+        cancelled:
+          type: boolean
+          title: Cancelled
+          description: Explicit allocation cancellation; elapsed time does not change
+            this flag.
+        nightly_price:
+          $ref: '#/components/schemas/NightlyPrice'
+          description: Agreed rate version, preserved after catalogue changes.
+        cancellation_reason:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Cancellation Reason
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - revision
+      - room_id
+      - date_range
+      - cancelled
+      - nightly_price
+      - cancellation_reason
+      title: RoomReservation
+      description: Latest accepted allocation, embedded in its booking rather than
+        exposed as CRUD.
+    RoomReservationId:
+      type: string
+      pattern: ^room_reservation_[0-7][0-9A-HJKMNP-TV-Z]{25}$
     RoomServiceStatus:
       type: string
       enum:
-      - room_service_status_in_service
-      - room_service_status_out_of_service
+      - ROOM_SERVICE_STATUS_IN_SERVICE
+      - ROOM_SERVICE_STATUS_OUT_OF_SERVICE
       title: RoomServiceStatus
       description: Room condition, independent of reservations and temporary holds.
+    RoomTier:
+      type: string
+      enum:
+      - ROOM_TIER_UNKNOWN
+      - ROOM_TIER_STANDARD
+      - ROOM_TIER_VIP
+      title: RoomTier
+      description: Service tier, separate from bed configuration; unknown means not
+        classified.
+    SearchActivitiesRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/SearchActivitiesRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: SearchActivitiesRequest
+    SearchActivitiesRequestPayload:
+      properties:
+        cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+          description: Continue the same query.
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          default: 50
+        ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_ActivityId_'
+          - type: 'null'
+        venue_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_VenueId_'
+          - type: 'null'
+        types:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ActivityType'
+            type: array
+            minItems: 1
+          - type: 'null'
+          title: Types
+        date_range:
+          anyOf:
+          - $ref: '#/components/schemas/DateRange'
+          - type: 'null'
+          description: Match events overlapping this interval.
+        places_required:
+          anyOf:
+          - type: integer
+            minimum: 1.0
+          - type: 'null'
+          title: Places Required
+          description: Require this many free places; unlimited activities also qualify.
+      additionalProperties: false
+      type: object
+      title: SearchActivitiesRequestPayload
+    SearchActivityReservationsRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/SearchActivityReservationsRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: SearchActivityReservationsRequest
+    SearchActivityReservationsRequestPayload:
+      properties:
+        cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+          description: Continue the same query.
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          default: 50
+        guest_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_GuestId_'
+          - type: 'null'
+        party_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_PartyId_'
+          - type: 'null'
+        booking_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_BookingId_'
+          - type: 'null'
+          description: Resolve through party membership.
+        activity_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_ActivityId_'
+          - type: 'null'
+        date_range:
+          anyOf:
+          - $ref: '#/components/schemas/DateRange'
+          - type: 'null'
+          description: Match current activity date ranges overlapping this interval.
+        effective:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Effective
+          description: Default to effective reservations; false selects ineffective
+            ones, null includes both.
+          default: true
+        cancelled:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Cancelled
+          description: Filter explicit cancellation independently of parent booking
+            eligibility.
+      additionalProperties: false
+      type: object
+      title: SearchActivityReservationsRequestPayload
+    SearchGuestsRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/SearchGuestsRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: SearchGuestsRequest
+    SearchGuestsRequestPayload:
+      properties:
+        cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+          description: Continue the same query.
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          default: 50
+        ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_GuestId_'
+          - type: 'null'
+        party_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_PartyId_'
+          - type: 'null'
+        booking_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_BookingId_'
+          - type: 'null'
+          description: Resolve through party membership.
+        name:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Name
+          description: Lexical match across first, last and preferred names.
+      additionalProperties: false
+      type: object
+      title: SearchGuestsRequestPayload
+    SearchPartiesRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/SearchPartiesRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: SearchPartiesRequest
+    SearchPartiesRequestPayload:
+      properties:
+        cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+          description: Continue the same query.
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          default: 50
+        ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_PartyId_'
+          - type: 'null'
+        booking_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_BookingId_'
+          - type: 'null'
+      additionalProperties: false
+      type: object
+      title: SearchPartiesRequestPayload
+    SearchPartyDetailsRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/SearchPartyDetailsRequestPayload'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: SearchPartyDetailsRequest
+    SearchPartyDetailsRequestPayload:
+      properties:
+        cursor:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Cursor
+          description: Continue the same query.
+        limit:
+          type: integer
+          maximum: 100.0
+          minimum: 1.0
+          title: Limit
+          default: 50
+        party_ids:
+          $ref: '#/components/schemas/IdFilter_PartyId_'
+        guest_ids:
+          anyOf:
+          - $ref: '#/components/schemas/IdFilter_GuestId_'
+          - type: 'null'
+          description: Restrict to details referencing any listed guest.
+        text:
+          anyOf:
+          - type: string
+            minLength: 1
+          - type: 'null'
+          title: Text
+          description: Lexical text query; no semantic search yet.
+      additionalProperties: false
+      type: object
+      required:
+      - party_ids
+      title: SearchPartyDetailsRequestPayload
     SearchRoomsRequest:
       properties:
         request_id:
@@ -456,23 +2481,23 @@ components:
           minimum: 1.0
           title: Limit
           default: 50
-        hotel_id:
+        hotel_ids:
           anyOf:
-          - $ref: '#/components/schemas/HotelId'
+          - $ref: '#/components/schemas/IdFilter_HotelId_'
           - type: 'null'
         ids:
           anyOf:
+          - $ref: '#/components/schemas/IdFilter_RoomId_'
+          - type: 'null'
+        tiers:
+          anyOf:
           - items:
-              $ref: '#/components/schemas/RoomId'
+              $ref: '#/components/schemas/RoomTier'
             type: array
             minItems: 1
           - type: 'null'
-          title: Ids
-        tier:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Tier
+          title: Tiers
+          description: Match any listed room tier.
         bed_types:
           anyOf:
           - items:
@@ -503,17 +2528,70 @@ components:
           - type: 'null'
           title: Service Statuses
           description: Match any listed service status.
-        availability_window:
+        availability_date_range:
           anyOf:
-          - $ref: '#/components/schemas/AvailabilityWindow'
+          - $ref: '#/components/schemas/DateRange'
           - type: 'null'
           description: Require an in-service room with no reservation or live hold
             overlapping this interval.
       additionalProperties: false
       type: object
       title: SearchRoomsRequestPayload
-      description: Combine supplied filters; omit availability_window to ignore dated
-        availability.
+      description: Combine supplied filters; omit availability_date_range to ignore
+        dated availability.
+    StaffMember:
+      properties:
+        id:
+          $ref: '#/components/schemas/StaffMemberId'
+        hotel_id:
+          $ref: '#/components/schemas/HotelId'
+        staff_code:
+          type: string
+          minLength: 1
+          title: Staff Code
+          description: Human-facing code, separate from the resource ID.
+        first_name:
+          type: string
+          minLength: 1
+          title: First Name
+        last_name:
+          type: string
+          minLength: 1
+          title: Last Name
+        title:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Title
+        role:
+          $ref: '#/components/schemas/StaffRole'
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - hotel_id
+      - staff_code
+      - first_name
+      - last_name
+      - title
+      - role
+      - created_at
+      title: StaffMember
+      description: The acting staff identity carried through requests and jobs.
+    StaffMemberId:
+      type: string
+      pattern: ^staff_member_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+    StaffRole:
+      type: string
+      enum:
+      - STAFF_ROLE_UNKNOWN
+      - STAFF_ROLE_CONCIERGE
+      title: StaffRole
+      description: Initial demo role; unknown grants no permissions.
     UpdateGuestFieldMask:
       type: string
       enum:
@@ -525,9 +2603,6 @@ components:
       - phone
       - email
       - contact_preference
-      title: UpdateGuestFieldMask
-      description: Allowed update_mask entries; values must match payload field names
-        exactly.
     UpdateGuestRequest:
       properties:
         request_id:
@@ -543,7 +2618,7 @@ components:
           type: array
           minItems: 1
           title: Update Mask
-          description: Unique field names, matching exactly the supplied payload fields.
+          description: Unique field names matching the supplied payload keys exactly.
       additionalProperties: false
       type: object
       required:
@@ -620,3 +2695,35 @@ components:
       - msg
       - type
       title: ValidationError
+    Venue:
+      properties:
+        id:
+          $ref: '#/components/schemas/VenueId'
+        name:
+          type: string
+          minLength: 1
+          title: Name
+        address:
+          $ref: '#/components/schemas/Address'
+        capacity:
+          type: integer
+          minimum: 0.0
+          title: Capacity
+          description: Administrative capacity; activities enforce their own limits.
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      additionalProperties: false
+      type: object
+      required:
+      - id
+      - name
+      - address
+      - capacity
+      - created_at
+      title: Venue
+      description: A shared activity location without a hotel owner.
+    VenueId:
+      type: string
+      pattern: ^venue_[0-7][0-9A-HJKMNP-TV-Z]{25}$

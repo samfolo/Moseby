@@ -33,11 +33,51 @@ or a finished permission catalogue. It separates accepted rules from proposals.
 | Jobs / notifications | Read permitted operation/progress/events | Submit registered job or notification | Constrained operation types; no arbitrary code or endpoints |
 | Schedules / occurrences | List/get definitions and recorded firings | Create/edit/disable schedules | Recheck current authority before future work executes |
 
-The precise family names, permission grammar and read/write versus action-specific
-codes are not approved by this table. Creator-only is an ownership check in
+This table sketches future operations. The current routes use the namespaced
+read/write codes listed below; future action-specific permissions remain open. Creator-only is an ownership check in
 addition to capability checks. Hotel/data scopes must not be reduced to a global
 set of permission strings. With one seeded staff member the implementation can
 stay small while preserving the check boundary.
+
+## Current domain permissions
+
+This is the exhaustive permission registry for the current domain routes: ten
+resource permissions and two broad grants. Future runtime and back-office
+operations will extend the list. The registry
+lives in `moseby/contracts/route_metadata.py`; unknown codes fail contract generation.
+
+| Permission | Operations currently covered |
+| --- | --- |
+| `Moseby:read` | Read any Moseby resource within the caller's data scope |
+| `Moseby:write` | Write any Moseby resource within the caller's data scope |
+| `Moseby.hotels:read` | Read hotel information |
+| `Moseby.staff-members:read` | Read staff information |
+| `Moseby.rooms:read` | Read/search rooms, including beds, prices and availability |
+| `Moseby.venues:read` | Read shared venues |
+| `Moseby.bookings:read` | Read bookings, embedded room reservations and keys |
+| `Moseby.bookings:write` | Issue and deactivate room keys |
+| `Moseby.guests:read` | Read/search guests, parties and party details |
+| `Moseby.guests:write` | Update guest fields and add party details |
+| `Moseby.activities:read` | Read/search activities and guest reservations |
+| `Moseby.activities:write` | Cancel activity reservations |
+
+Names use the project spelling and are case-sensitive: `Moseby.guests:read`.
+Periods separate the application/resource path; the colon separates the action.
+`Moseby:read` covers resource reads and `Moseby:write` covers resource writes.
+Write does not imply read; grant both for both capabilities. Broad grants do not
+bypass hotel scope, thread ownership, immutable fields, or lifecycle checks.
+An unknown staff role grants no permissions.
+
+`x-permissions.anyOf` lists alternatives: either the resource permission or the
+corresponding broad grant is sufficient. `x-hotel-scoped: true`
+additionally requires records to belong to the acting staff member's hotel,
+possibly through their booking. Shared venue/activity definitions use false
+because they have no hotel owner; their read permission is still required.
+Reservations remain hotel-scoped even when the activity itself is shared.
+
+These are Moseby's custom OpenAPI annotations, not framework authorization.
+The earlier `shared-catalogue` scope label is removed. Role grants and enforcement
+remain to be implemented; adding a permission annotation alone does not secure a route.
 
 ## Tool contract to define now; implementation can follow
 

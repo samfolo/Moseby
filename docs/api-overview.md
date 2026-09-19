@@ -29,7 +29,7 @@ No working gateway or DDL is added.
 - Public resources and tables differ. Price, price version, bed, room reservation
   and payment-attempt storage do not imply agent-facing endpoints.
 
-Illustrative update envelope (placement of `update_mask` is proposed):
+Selected update envelope (mask entries exactly match payload field names):
 
 ```json
 {
@@ -38,6 +38,9 @@ Illustrative update envelope (placement of `update_mask` is proposed):
   "payload": {"dietary_requirements": "No peanuts"}
 }
 ```
+
+Domain enum values use SCREAMING_SNAKE_CASE; field masks use exact field names. One DateRange with min_date and
+max_date is used throughout; both bounds are required and the end is exclusive.
 
 A mask selects changes; it does not authorise immutable or forbidden fields.
 Define omitted versus explicit-null values. Actor identity is resolved by the
@@ -57,12 +60,13 @@ a get-by-ID operation remains distinct.
 | Venue | ID, name, address, capacity; no hotel owner | `/venues` list/read/create; no search needed; back-office edits not part of this agent review |
 | Price and versions | Shared stable ID; immutable revisions with minor-unit amount and currency | Repository methods only; room/activity responses include relevant price data |
 
-Room QUERY supports dates/availability, IDs, tier, min/max beds and bathrooms,
-bed types/configuration and price filters. Current prices are joined into room
-views. Nightly versus stay-total price filtering, currency and any/all bed-type
-semantics remain to be fixed in payload design. Availability is computed from
+Room QUERY uses availability_date_range, ID arrays, tiers, number ranges for beds
+and bathrooms, bed types and a currency-qualified nightly amount range. ID arrays
+use OR within each list and AND between filters; bed types require every listed
+type. Current prices are joined into room views. Availability is computed from
 in-service state, live holds and reservations, never stored as a room flag.
-A successful search does not hold capacity.
+A successful search does not hold capacity. A room has one enum tier (standard,
+VIP or explicit unknown); the `tiers` filter matches any supplied tier.
 
 Room category and whether occupancy always equals bed sleeping capacity remain
 open. Bed-type capacities may be a small code mapping or table. No bed status
@@ -77,19 +81,23 @@ access should use deliberate interfaces rather than arbitrary table access.
 | Checkout items / quote / hold | Items and allocations, pinned amounts, hold deadline and consumed/released outcome | Embedded/internal; hold granularity remains open |
 | Payment attempt | Checkout/quote, request/job/reference, amount/currency, outcome/receipt | Internal integration record; no standalone HTTP API |
 | Booking | ID, hotel ID, name, timestamps, current status and revision history, room allocations | `/bookings` list/read and allowed mutations; booking operations own reservation creation and amendments |
-| Room reservation | Stable ID, revision, booking ID, room ID, individual dates, status and pinned rate | Internal; no standalone room-reservation API |
-| Room key | ID, room-reservation association, validity times, optional code, deactivated-at/reason | Issuance/read/deactivate operations; top-level `/room-keys` versus room nesting remains open |
+| Room reservation | Stable ID, revision, booking ID, room ID, individual dates, cancellation flag and pinned rate | Internal; no standalone room-reservation API |
+| Room key | ID, room-reservation association, derived effective access, optional code, deactivated-at/reason | Issuance/read/deactivate operations; top-level `/room-keys` versus room nesting remains open |
 
 Booking creation must preserve checkout confirmation conditions: consume a live
 hold and create booking/party/guests/reservations together after required payment
 and approval. Removing a reservation endpoint does not bypass this rule. The
 API entry point for final booking creation remains to be fixed with checkout.
-Room changes and extensions are booking operations; keep original allocations
-valid until replacement/amendment succeeds. Extension pricing/payment is open.
+Room changes and extensions are booking operations; the booking stays confirmed
+while the change is prepared. There is no under-revision booking state in the
+current contract. Keep original allocations valid until replacement/amendment succeeds. Extension pricing/payment is open.
 
 Keys now reference the reservation, not only the room. They have individual IDs
-but no guest owner. Effective access considers key validity/deactivation and the
-current reservation/parent booking state. A new stay must not revive an old key.
+but no guest owner or independent validity dates. Effective access requires no
+explicit revocation, a confirmed booking, an uncancelled reservation, and now
+within the reservation's current date range. Extensions carry through automatically.
+Parent cancellation makes the key ineffective without setting `deactivated_at`;
+that timestamp records explicit revocation. A new stay must not revive an old key.
 Exactly how to reference a stable reservation identity with revision storage is
 a DDL decision. Keys can expose derived room/booking IDs in responses.
 
@@ -102,10 +110,13 @@ Full billing, extra charges, refunds and physical door integration remain out.
 | Party | ID, one booking; one or more guests | `/parties` get/query; no independent party creation bypassing checkout |
 | Guest | ID, one party, names, age, dietary text, phone/email/preference | `/guests` list/get/query/PATCH; query by party/booking and other agreed criteria |
 | Party detail | ID, party ID, freeform text, versioned guest-reference array | `/party-details`; get-by-detail-ID and QUERY by party recommended; path-ID meaning needs final acceptance |
-| Scheduled activity | ID, venue, title/type/description, time window, nullable capacity, booking sizes, minimum age, price | `/activities` list/get/create/query/controlled updates; dated instances, not templates |
-| Activity reservation | ID/revision, guest, party, scheduled activity, active/cancelled, reason, agreed rate | `/activity-reservations` list/get/query/create and controlled cancellation; exact actions open |
+| Scheduled activity | ID, venue, title/type/description, date range, nullable capacity, booking sizes, minimum age, price | `/activities` list/get/create/query/controlled updates; dated instances, not templates |
+| Activity reservation | ID/revision, guest, party, scheduled activity, cancellation flag, reason, agreed rate | `/activity-reservations` list/get/query/create and controlled cancellation; exact actions open |
 
-One reservation per guest; party attributes the booking for charges. Group
+One activity reservation represents one guest; at most one effective reservation
+per guest/activity is allowed. Search uses multi-ID filters and defaults to effective
+results; explicit false/null supports ineffective/all results. Party attributes
+the booking for charges. Group
 requests can create several records; all-or-nothing behaviour is still proposed.
 Guest overlaps and shared venues are allowed. Activity capacity is enforced;
 venue capacity remains admin configuration. Cancellation is terminal.

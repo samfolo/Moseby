@@ -12,7 +12,13 @@ already present provisionally in this SQL.
 The latest [checkout lifecycle review](../docs/checkout-lifecycle.md) supersedes
 two points below: confirmed payment is now required before creating a booking,
 and technical `error` is rejected as a booking status. The SQL has not yet been
-revised for these decisions. `under_revision` remains under discussion.
+revised for these decisions. The current Pydantic contract also removes
+`under_revision`: an amendment leaves the accepted booking confirmed. Reservation
+cancellation is now a boolean in the contract, enum values use uppercase strings,
+and dates use one shared DateRange. Keys now inherit reservation dates instead
+of having their own validity interval; `effective` is derived from current dates,
+booking/reservation state and explicit key revocation. The SQL key columns are
+stale. SQL remains an older review artifact.
 
 The subsequent [room review](../docs/data-modelling.md#bed-relationship-latest-review)
 selects separate mutable bed rows and a room `in_service` boolean, with dated

@@ -1,30 +1,30 @@
 from enum import StrEnum
-from typing import Annotated, Self, TypedDict
+from typing import Annotated, Literal, Self, TypedDict
 
 from pydantic import ConfigDict, Field, model_validator, with_config
 
-from .common import Contract, Request
-from .identifiers import GuestId, PartyId
+from .common import Contract, IdFilter, Request, SearchRequestPayload
+from .identifiers import BookingId, GuestId, PartyId
 
 
 class ContactPreference(StrEnum):
     """Preferred contact channel; null on the guest selects all supplied channels."""
 
-    PHONE = "contact_preference_phone"
-    EMAIL = "contact_preference_email"
+    PHONE = "CONTACT_PREFERENCE_PHONE"
+    EMAIL = "CONTACT_PREFERENCE_EMAIL"
 
 
-class UpdateGuestFieldMask(StrEnum):
-    """Allowed update_mask entries; values must match payload field names exactly."""
-
-    FIRST_NAME = "first_name"
-    LAST_NAME = "last_name"
-    PREFERRED_NAME = "preferred_name"
-    AGE = "age"
-    DIETARY_REQUIREMENTS = "dietary_requirements"
-    PHONE = "phone"
-    EMAIL = "email"
-    CONTACT_PREFERENCE = "contact_preference"
+# Mask entries are exact payload field names.
+type UpdateGuestFieldMask = Literal[
+    "first_name",
+    "last_name",
+    "preferred_name",
+    "age",
+    "dietary_requirements",
+    "phone",
+    "email",
+    "contact_preference",
+]
 
 
 class Guest(Contract):
@@ -47,7 +47,10 @@ class Guest(Contract):
 
     @model_validator(mode="after")
     def check_contact(self) -> Self:
-        contacts = {ContactPreference.PHONE: self.phone, ContactPreference.EMAIL: self.email}
+        contacts = {
+            ContactPreference.PHONE: self.phone,
+            ContactPreference.EMAIL: self.email,
+        }
         if self.contact_preference and not contacts[self.contact_preference]:
             raise ValueError("contact_preference requires the selected contact")
         return self
@@ -69,7 +72,8 @@ class UpdateGuestRequestPayload(TypedDict, total=False):
 
 class UpdateGuestRequest(Request[UpdateGuestRequestPayload]):
     update_mask: list[UpdateGuestFieldMask] = Field(
-        min_length=1, description="Unique field names, matching exactly the supplied payload fields."
+        min_length=1,
+        description="Unique field names matching the supplied payload keys exactly.",
     )
 
     @model_validator(mode="after")
@@ -79,3 +83,19 @@ class UpdateGuestRequest(Request[UpdateGuestRequestPayload]):
             raise ValueError("update_mask must name each supplied field exactly once")
         return self
 
+
+class SearchGuestsRequestPayload(SearchRequestPayload):
+    ids: IdFilter[GuestId] | None = None
+    party_ids: IdFilter[PartyId] | None = None
+    booking_ids: IdFilter[BookingId] | None = Field(
+        default=None, description="Resolve through party membership."
+    )
+    name: str | None = Field(
+        default=None,
+        min_length=1,
+        description="Lexical match across first, last and preferred names.",
+    )
+
+
+class SearchGuestsRequest(Request[SearchGuestsRequestPayload]):
+    pass

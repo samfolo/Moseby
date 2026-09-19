@@ -36,8 +36,9 @@ Do not reopen these unless the author changes direction:
   survive later rate changes.
 - Party details contain text and a list of referenced guests. Jev is selected
   for the guest-reference experiment; dietary requirements remain individual.
-- A key opens one room, has independent validity times, and uses a freeform
-  deactivation reason. No separate active/inactive key column is requested.
+- A key follows its reservation dates, with no independent validity times. Access
+  requires a confirmed booking, uncancelled reservation, and no key revocation.
+  Explicit deactivation records a time and freeform reason; effective access is derived.
 - Venues are multipurpose. Activities have minimum/maximum booking sizes and
   minimum age. Extra group-size steps are out. Null activity capacity means no
   activity-level limit.
@@ -104,10 +105,11 @@ state transitions are not agreed.
   confirm the replacement and cancel the old room allocation together. Approve
   the sequence, including complimentary upgrades and failed payment outcomes.
 - [ ] **B2 — Remaining statuses.** Answered: technical `error` must leave booking
-  status; cancellation stays terminal. Still open: whether `under_revision`
-  remains or a separate change request leaves the booking confirmed; what marks
-  completion and whether it is terminal; room reservation status meanings.
-  The current SQL still allows `error` pending the next DDL pass.
+  status; cancellation stays terminal. The current contract removes under-revision:
+  a separate change leaves the accepted booking confirmed. Reservations now use a
+  cancellation boolean, independent of time passing. Still open: what marks
+  completion and whether it is terminal. SQL still contains the old status fields
+  and enum values pending the next DDL pass.
 - [ ] **B3 — Membership corrections and departures.** Answered: additional
   travellers can use a separate booking/party even if socially part of the same
   group. Still open: corrections and early departures, their effects on future
@@ -124,7 +126,7 @@ state transitions are not agreed.
 - [ ] **B5 — Key validity.** Answered: `deactivated_at` and a room-reservation
   link are selected; keys have identity but no guest owner. Current SQL remains
   room-only. Specify retained/deleted history, identity linkage through reservation
-  revisions, and effective-access checks for changes/cancellations. A later stay
+  revisions, and enforcement of the agreed effective-access rule. A later stay
   must never revive an earlier key. Physical lock integration stays deferred.
 
 **Done when:** we can walk through a room change, guest departure, and booking
@@ -154,7 +156,10 @@ activity cancellation is terminal.
   see E1. Guest conflicts remain advisory.
 - [ ] **C4 — Terminal cancellation and parent eligibility.** Answered: individual
   activity cancellation is terminal; rebooking needs a new ID and available
-  capacity. SQL enforcement is still pending. Still open: parent states that
+  capacity. At most one effective reservation per guest/activity is selected.
+  Cancellation is represented by a boolean in the current contract; effective
+  searches default to true and date filtering is separate. SQL enforcement is
+  still pending. Still open: parent states that
   qualify for activity access, especially completed bookings. Historical reports
   must use historical parent state, not apply today's state retrospectively.
 

@@ -4,9 +4,9 @@ from pydantic import Field
 
 from .common import Contract
 
-
 type Currency = Annotated[
-    str, Field(pattern=r"^[A-Z]{3}$", description="ISO 4217 currency code, such as GBP.")
+    str,
+    Field(pattern=r"^[A-Z]{3}$", description="ISO 4217 currency code, such as GBP."),
 ]
 
 
@@ -21,4 +21,3 @@ class NonNegativeAmount(Amount):
     """A price that cannot be negative; zero permits complimentary items."""
 
     value: int = Field(ge=0, description="Nonnegative integer currency minor units.")
-
