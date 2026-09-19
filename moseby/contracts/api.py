@@ -28,7 +28,7 @@ app.include_router(domain_router)
     summary="Search rooms",
     response_model=Page[Room],
     description="Combine filters and return current prices. An availability window restricts results to free rooms; no capacity is held.",
-    openapi_extra=query_body(SearchRoomsRequest, "Moseby.rooms:read"),
+    openapi_extra=query_body(SearchRoomsRequest, "moseby.rooms:read"),
 )
 def search_rooms(request: SearchRoomsRequest) -> Page[Room]:
     raise HTTPException(501, "Contract draft; operation is not implemented.")
@@ -38,7 +38,7 @@ def search_rooms(request: SearchRoomsRequest) -> Page[Room]:
     "/rooms/{id}",
     operation_id="getRoom",
     summary="Read a room",
-    openapi_extra=access("Moseby.rooms:read"),
+    openapi_extra=access("moseby.rooms:read"),
 )
 def get_room(id: RoomId) -> Room:
     raise HTTPException(501, "Contract draft; operation is not implemented.")
@@ -48,7 +48,7 @@ def get_room(id: RoomId) -> Room:
     "/guests/{id}",
     operation_id="getGuest",
     summary="Read a guest",
-    openapi_extra=access("Moseby.guests:read"),
+    openapi_extra=access("moseby.guests:read"),
 )
 def get_guest(id: GuestId) -> Guest:
     raise HTTPException(501, "Contract draft; operation is not implemented.")
@@ -59,7 +59,7 @@ def get_guest(id: GuestId) -> Guest:
     operation_id="updateGuest",
     summary="Update a guest",
     description="Apply the masked fields to the existing guest and validate the resulting guest before saving.",
-    openapi_extra=access("Moseby.guests:write"),
+    openapi_extra=access("moseby.guests:write"),
 )
 def update_guest(id: GuestId, request: UpdateGuestRequest) -> Guest:
     raise HTTPException(501, "Contract draft; operation is not implemented.")

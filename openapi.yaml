@@ -47,8 +47,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.hotels:read
-        - Moseby:read
+        - moseby.hotels:read
+        - moseby:read
       x-hotel-scoped: true
   /hotels/{id}:
     get:
@@ -79,8 +79,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.hotels:read
-        - Moseby:read
+        - moseby.hotels:read
+        - moseby:read
       x-hotel-scoped: true
   /staff-members:
     get:
@@ -123,8 +123,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.staff-members:read
-        - Moseby:read
+        - moseby.staff-members:read
+        - moseby:read
       x-hotel-scoped: true
   /staff-members/{id}:
     get:
@@ -155,8 +155,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.staff-members:read
-        - Moseby:read
+        - moseby.staff-members:read
+        - moseby:read
       x-hotel-scoped: true
   /venues:
     get:
@@ -199,8 +199,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.venues:read
-        - Moseby:read
+        - moseby.venues:read
+        - moseby:read
       x-hotel-scoped: false
   /venues/{id}:
     get:
@@ -231,8 +231,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.venues:read
-        - Moseby:read
+        - moseby.venues:read
+        - moseby:read
       x-hotel-scoped: false
   /bookings:
     get:
@@ -275,8 +275,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.bookings:read
-        - Moseby:read
+        - moseby.bookings:read
+        - moseby:read
       x-hotel-scoped: true
   /bookings/{id}:
     get:
@@ -307,8 +307,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.bookings:read
-        - Moseby:read
+        - moseby.bookings:read
+        - moseby:read
       x-hotel-scoped: true
   /parties/{id}:
     get:
@@ -339,8 +339,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:read
-        - Moseby:read
+        - moseby.guests:read
+        - moseby:read
       x-hotel-scoped: true
   /parties:
     query:
@@ -363,8 +363,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:read
-        - Moseby:read
+        - moseby.guests:read
+        - moseby:read
       x-hotel-scoped: true
       requestBody:
         required: true
@@ -413,8 +413,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:read
-        - Moseby:read
+        - moseby.guests:read
+        - moseby:read
       x-hotel-scoped: true
     query:
       summary: Search Guests
@@ -436,8 +436,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:read
-        - Moseby:read
+        - moseby.guests:read
+        - moseby:read
       x-hotel-scoped: true
       requestBody:
         required: true
@@ -474,8 +474,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:read
-        - Moseby:read
+        - moseby.guests:read
+        - moseby:read
       x-hotel-scoped: true
   /party-details:
     post:
@@ -505,8 +505,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:write
-        - Moseby:write
+        - moseby.guests:write
+        - moseby:write
       x-hotel-scoped: true
     query:
       summary: Search Party Details
@@ -528,8 +528,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:read
-        - Moseby:read
+        - moseby.guests:read
+        - moseby:read
       x-hotel-scoped: true
       requestBody:
         required: true
@@ -578,8 +578,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.bookings:read
-        - Moseby:read
+        - moseby.bookings:read
+        - moseby:read
       x-hotel-scoped: true
     post:
       summary: Issue Room Key
@@ -607,8 +607,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.bookings:write
-        - Moseby:write
+        - moseby.bookings:write
+        - moseby:write
       x-hotel-scoped: true
   /room-keys/{id}:
     get:
@@ -639,8 +639,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.bookings:read
-        - Moseby:read
+        - moseby.bookings:read
+        - moseby:read
       x-hotel-scoped: true
   /room-keys/{id}:deactivate:
     post:
@@ -677,8 +677,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.bookings:write
-        - Moseby:write
+        - moseby.bookings:write
+        - moseby:write
       x-hotel-scoped: true
   /activities:
     get:
@@ -721,8 +721,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.activities:read
-        - Moseby:read
+        - moseby.activities:read
+        - moseby:read
       x-hotel-scoped: false
     query:
       summary: Search Activities
@@ -744,8 +744,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.activities:read
-        - Moseby:read
+        - moseby.activities:read
+        - moseby:read
       x-hotel-scoped: false
       requestBody:
         required: true
@@ -782,8 +782,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.activities:read
-        - Moseby:read
+        - moseby.activities:read
+        - moseby:read
       x-hotel-scoped: false
   /activity-reservations:
     get:
@@ -826,8 +826,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.activities:read
-        - Moseby:read
+        - moseby.activities:read
+        - moseby:read
       x-hotel-scoped: true
     query:
       summary: Search Activity Reservations
@@ -849,8 +849,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.activities:read
-        - Moseby:read
+        - moseby.activities:read
+        - moseby:read
       x-hotel-scoped: true
       requestBody:
         required: true
@@ -887,8 +887,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.activities:read
-        - Moseby:read
+        - moseby.activities:read
+        - moseby:read
       x-hotel-scoped: true
   /activity-reservations/{id}:cancel:
     post:
@@ -925,8 +925,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.activities:write
-        - Moseby:write
+        - moseby.activities:write
+        - moseby:write
       x-hotel-scoped: true
   /rooms:
     query:
@@ -951,8 +951,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.rooms:read
-        - Moseby:read
+        - moseby.rooms:read
+        - moseby:read
       x-hotel-scoped: true
       requestBody:
         required: true
@@ -989,8 +989,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.rooms:read
-        - Moseby:read
+        - moseby.rooms:read
+        - moseby:read
       x-hotel-scoped: true
   /guests/{id}:
     get:
@@ -1021,8 +1021,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:read
-        - Moseby:read
+        - moseby.guests:read
+        - moseby:read
       x-hotel-scoped: true
     patch:
       summary: Update a guest
@@ -1060,8 +1060,8 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       x-permissions:
         anyOf:
-        - Moseby.guests:write
-        - Moseby:write
+        - moseby.guests:write
+        - moseby:write
       x-hotel-scoped: true
 components:
   schemas:

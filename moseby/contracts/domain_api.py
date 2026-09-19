@@ -45,14 +45,14 @@ def not_implemented() -> Never:
 
 
 @router.get(
-    "/hotels", operation_id="listHotels", openapi_extra=access("Moseby.hotels:read")
+    "/hotels", operation_id="listHotels", openapi_extra=access("moseby.hotels:read")
 )
 def list_hotels(pagination: Pagination) -> Page[Hotel]:
     not_implemented()
 
 
 @router.get(
-    "/hotels/{id}", operation_id="getHotel", openapi_extra=access("Moseby.hotels:read")
+    "/hotels/{id}", operation_id="getHotel", openapi_extra=access("moseby.hotels:read")
 )
 def get_hotel(id: HotelId) -> Hotel:
     not_implemented()
@@ -61,7 +61,7 @@ def get_hotel(id: HotelId) -> Hotel:
 @router.get(
     "/staff-members",
     operation_id="listStaffMembers",
-    openapi_extra=access("Moseby.staff-members:read"),
+    openapi_extra=access("moseby.staff-members:read"),
 )
 def list_staff_members(pagination: Pagination) -> Page[StaffMember]:
     not_implemented()
@@ -70,7 +70,7 @@ def list_staff_members(pagination: Pagination) -> Page[StaffMember]:
 @router.get(
     "/staff-members/{id}",
     operation_id="getStaffMember",
-    openapi_extra=access("Moseby.staff-members:read"),
+    openapi_extra=access("moseby.staff-members:read"),
 )
 def get_staff_member(id: StaffMemberId) -> StaffMember:
     not_implemented()
@@ -79,7 +79,7 @@ def get_staff_member(id: StaffMemberId) -> StaffMember:
 @router.get(
     "/venues",
     operation_id="listVenues",
-    openapi_extra=access("Moseby.venues:read", hotel_scoped=False),
+    openapi_extra=access("moseby.venues:read", hotel_scoped=False),
 )
 def list_venues(pagination: Pagination) -> Page[Venue]:
     not_implemented()
@@ -88,7 +88,7 @@ def list_venues(pagination: Pagination) -> Page[Venue]:
 @router.get(
     "/venues/{id}",
     operation_id="getVenue",
-    openapi_extra=access("Moseby.venues:read", hotel_scoped=False),
+    openapi_extra=access("moseby.venues:read", hotel_scoped=False),
 )
 def get_venue(id: VenueId) -> Venue:
     not_implemented()
@@ -97,7 +97,7 @@ def get_venue(id: VenueId) -> Venue:
 @router.get(
     "/bookings",
     operation_id="listBookings",
-    openapi_extra=access("Moseby.bookings:read"),
+    openapi_extra=access("moseby.bookings:read"),
 )
 def list_bookings(pagination: Pagination) -> Page[Booking]:
     not_implemented()
@@ -106,14 +106,14 @@ def list_bookings(pagination: Pagination) -> Page[Booking]:
 @router.get(
     "/bookings/{id}",
     operation_id="getBooking",
-    openapi_extra=access("Moseby.bookings:read"),
+    openapi_extra=access("moseby.bookings:read"),
 )
 def get_booking(id: BookingId) -> Booking:
     not_implemented()
 
 
 @router.get(
-    "/parties/{id}", operation_id="getParty", openapi_extra=access("Moseby.guests:read")
+    "/parties/{id}", operation_id="getParty", openapi_extra=access("moseby.guests:read")
 )
 def get_party(id: PartyId) -> Party:
     not_implemented()
@@ -123,14 +123,14 @@ def get_party(id: PartyId) -> Party:
     "/parties",
     methods=["QUERY"],
     operation_id="searchParties",
-    openapi_extra=query_body(SearchPartiesRequest, "Moseby.guests:read"),
+    openapi_extra=query_body(SearchPartiesRequest, "moseby.guests:read"),
 )
 def search_parties(request: SearchPartiesRequest) -> Page[Party]:
     not_implemented()
 
 
 @router.get(
-    "/guests", operation_id="listGuests", openapi_extra=access("Moseby.guests:read")
+    "/guests", operation_id="listGuests", openapi_extra=access("moseby.guests:read")
 )
 def list_guests(pagination: Pagination) -> Page[Guest]:
     not_implemented()
@@ -140,7 +140,7 @@ def list_guests(pagination: Pagination) -> Page[Guest]:
     "/guests",
     methods=["QUERY"],
     operation_id="searchGuests",
-    openapi_extra=query_body(SearchGuestsRequest, "Moseby.guests:read"),
+    openapi_extra=query_body(SearchGuestsRequest, "moseby.guests:read"),
 )
 def search_guests(request: SearchGuestsRequest) -> Page[Guest]:
     not_implemented()
@@ -149,7 +149,7 @@ def search_guests(request: SearchGuestsRequest) -> Page[Guest]:
 @router.get(
     "/party-details/{id}",
     operation_id="getPartyDetail",
-    openapi_extra=access("Moseby.guests:read"),
+    openapi_extra=access("moseby.guests:read"),
 )
 def get_party_detail(id: PartyDetailId) -> PartyDetail:
     not_implemented()
@@ -159,7 +159,7 @@ def get_party_detail(id: PartyDetailId) -> PartyDetail:
     "/party-details",
     methods=["QUERY"],
     operation_id="searchPartyDetails",
-    openapi_extra=query_body(SearchPartyDetailsRequest, "Moseby.guests:read"),
+    openapi_extra=query_body(SearchPartyDetailsRequest, "moseby.guests:read"),
 )
 def search_party_details(request: SearchPartyDetailsRequest) -> Page[PartyDetail]:
     not_implemented()
@@ -170,7 +170,7 @@ def search_party_details(request: SearchPartyDetailsRequest) -> Page[PartyDetail
     operation_id="createPartyDetail",
     status_code=201,
     description="Record a note about a party and identify any guests mentioned.",
-    openapi_extra=access("Moseby.guests:write"),
+    openapi_extra=access("moseby.guests:write"),
 )
 def create_party_detail(request: CreatePartyDetailRequest) -> PartyDetail:
     not_implemented()
@@ -179,7 +179,7 @@ def create_party_detail(request: CreatePartyDetailRequest) -> PartyDetail:
 @router.get(
     "/room-keys",
     operation_id="listRoomKeys",
-    openapi_extra=access("Moseby.bookings:read"),
+    openapi_extra=access("moseby.bookings:read"),
 )
 def list_room_keys(pagination: Pagination) -> Page[RoomKey]:
     not_implemented()
@@ -188,7 +188,7 @@ def list_room_keys(pagination: Pagination) -> Page[RoomKey]:
 @router.get(
     "/room-keys/{id}",
     operation_id="getRoomKey",
-    openapi_extra=access("Moseby.bookings:read"),
+    openapi_extra=access("moseby.bookings:read"),
 )
 def get_room_key(id: RoomKeyId) -> RoomKey:
     not_implemented()
@@ -198,7 +198,7 @@ def get_room_key(id: RoomKeyId) -> RoomKey:
     "/room-keys",
     operation_id="issueRoomKey",
     status_code=201,
-    openapi_extra=access("Moseby.bookings:write"),
+    openapi_extra=access("moseby.bookings:write"),
 )
 def issue_room_key(request: IssueRoomKeyRequest) -> RoomKey:
     not_implemented()
@@ -207,7 +207,7 @@ def issue_room_key(request: IssueRoomKeyRequest) -> RoomKey:
 @router.post(
     "/room-keys/{id}:deactivate",
     operation_id="deactivateRoomKey",
-    openapi_extra=access("Moseby.bookings:write"),
+    openapi_extra=access("moseby.bookings:write"),
 )
 def deactivate_room_key(id: RoomKeyId, request: DeactivateRoomKeyRequest) -> RoomKey:
     not_implemented()
@@ -216,7 +216,7 @@ def deactivate_room_key(id: RoomKeyId, request: DeactivateRoomKeyRequest) -> Roo
 @router.get(
     "/activities",
     operation_id="listActivities",
-    openapi_extra=access("Moseby.activities:read", hotel_scoped=False),
+    openapi_extra=access("moseby.activities:read", hotel_scoped=False),
 )
 def list_activities(pagination: Pagination) -> Page[Activity]:
     not_implemented()
@@ -225,7 +225,7 @@ def list_activities(pagination: Pagination) -> Page[Activity]:
 @router.get(
     "/activities/{id}",
     operation_id="getActivity",
-    openapi_extra=access("Moseby.activities:read", hotel_scoped=False),
+    openapi_extra=access("moseby.activities:read", hotel_scoped=False),
 )
 def get_activity(id: ActivityId) -> Activity:
     not_implemented()
@@ -236,7 +236,7 @@ def get_activity(id: ActivityId) -> Activity:
     methods=["QUERY"],
     operation_id="searchActivities",
     openapi_extra=query_body(
-        SearchActivitiesRequest, "Moseby.activities:read", hotel_scoped=False
+        SearchActivitiesRequest, "moseby.activities:read", hotel_scoped=False
     ),
 )
 def search_activities(request: SearchActivitiesRequest) -> Page[Activity]:
@@ -246,7 +246,7 @@ def search_activities(request: SearchActivitiesRequest) -> Page[Activity]:
 @router.get(
     "/activity-reservations",
     operation_id="listActivityReservations",
-    openapi_extra=access("Moseby.activities:read"),
+    openapi_extra=access("moseby.activities:read"),
 )
 def list_activity_reservations(pagination: Pagination) -> Page[ActivityReservation]:
     not_implemented()
@@ -255,7 +255,7 @@ def list_activity_reservations(pagination: Pagination) -> Page[ActivityReservati
 @router.get(
     "/activity-reservations/{id}",
     operation_id="getActivityReservation",
-    openapi_extra=access("Moseby.activities:read"),
+    openapi_extra=access("moseby.activities:read"),
 )
 def get_activity_reservation(id: ActivityReservationId) -> ActivityReservation:
     not_implemented()
@@ -266,7 +266,7 @@ def get_activity_reservation(id: ActivityReservationId) -> ActivityReservation:
     methods=["QUERY"],
     operation_id="searchActivityReservations",
     openapi_extra=query_body(
-        SearchActivityReservationsRequest, "Moseby.activities:read"
+        SearchActivityReservationsRequest, "moseby.activities:read"
     ),
 )
 def search_activity_reservations(
@@ -278,7 +278,7 @@ def search_activity_reservations(
 @router.post(
     "/activity-reservations/{id}:cancel",
     operation_id="cancelActivityReservation",
-    openapi_extra=access("Moseby.activities:write"),
+    openapi_extra=access("moseby.activities:write"),
 )
 def cancel_activity_reservation(
     id: ActivityReservationId, request: CancelActivityReservationRequest

@@ -133,7 +133,7 @@ to each operation. Bookings cover keys; guests cover parties/details; activities
 cover reservations and itineraries. Hotels, staff members and venues have their
 own proposed read capabilities. Catalogue reads for shared venues/activities do
 not invent hotel ownership. Guest-associated records still require hotel scope.
-Names use `Moseby.resource:read/write`, with `Moseby:read/write` as alternative
+Names use `moseby.resource:read/write`, with `moseby:read/write` as alternative
 broad grants. All ownership checks still apply. These annotations do not implement
 authorization or finalize the role matrix.
 

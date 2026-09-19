@@ -3,18 +3,18 @@
 from pydantic import BaseModel
 
 PERMISSIONS = {
-    "Moseby:read": "Read across all Moseby resources within the caller's data scope.",
-    "Moseby:write": "Write across all Moseby resources within the caller's data scope.",
-    "Moseby.hotels:read": "Read hotel information.",
-    "Moseby.staff-members:read": "Read staff information.",
-    "Moseby.rooms:read": "Read rooms, beds, prices and availability.",
-    "Moseby.venues:read": "Read shared venues.",
-    "Moseby.bookings:read": "Read bookings, room reservations and keys.",
-    "Moseby.bookings:write": "Issue and deactivate room keys.",
-    "Moseby.guests:read": "Read guests, parties and party details.",
-    "Moseby.guests:write": "Update guests and add party details.",
-    "Moseby.activities:read": "Read activities and guest reservations.",
-    "Moseby.activities:write": "Cancel activity reservations.",
+    "moseby:read": "Read across all Moseby resources within the caller's data scope.",
+    "moseby:write": "Write across all Moseby resources within the caller's data scope.",
+    "moseby.hotels:read": "Read hotel information.",
+    "moseby.staff-members:read": "Read staff information.",
+    "moseby.rooms:read": "Read rooms, beds, prices and availability.",
+    "moseby.venues:read": "Read shared venues.",
+    "moseby.bookings:read": "Read bookings, room reservations and keys.",
+    "moseby.bookings:write": "Issue and deactivate room keys.",
+    "moseby.guests:read": "Read guests, parties and party details.",
+    "moseby.guests:write": "Update guests and add party details.",
+    "moseby.activities:read": "Read activities and guest reservations.",
+    "moseby.activities:write": "Cancel activity reservations.",
 }
 
 
@@ -23,7 +23,7 @@ def access(permission: str, *, hotel_scoped: bool = True) -> dict:
         raise ValueError(f"Unknown permission: {permission}")
     action = permission.rsplit(":", 1)[1]
     return {
-        "x-permissions": {"anyOf": [permission, f"Moseby:{action}"]},
+        "x-permissions": {"anyOf": [permission, f"moseby:{action}"]},
         "x-hotel-scoped": hotel_scoped,
     }
 

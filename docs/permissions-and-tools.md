@@ -48,22 +48,22 @@ lives in `moseby/contracts/route_metadata.py`; unknown codes fail contract gener
 
 | Permission | Operations currently covered |
 | --- | --- |
-| `Moseby:read` | Read any Moseby resource within the caller's data scope |
-| `Moseby:write` | Write any Moseby resource within the caller's data scope |
-| `Moseby.hotels:read` | Read hotel information |
-| `Moseby.staff-members:read` | Read staff information |
-| `Moseby.rooms:read` | Read/search rooms, including beds, prices and availability |
-| `Moseby.venues:read` | Read shared venues |
-| `Moseby.bookings:read` | Read bookings, embedded room reservations and keys |
-| `Moseby.bookings:write` | Issue and deactivate room keys |
-| `Moseby.guests:read` | Read/search guests, parties and party details |
-| `Moseby.guests:write` | Update guest fields and add party details |
-| `Moseby.activities:read` | Read/search activities and guest reservations |
-| `Moseby.activities:write` | Cancel activity reservations |
+| `moseby:read` | Read any Moseby resource within the caller's data scope |
+| `moseby:write` | Write any Moseby resource within the caller's data scope |
+| `moseby.hotels:read` | Read hotel information |
+| `moseby.staff-members:read` | Read staff information |
+| `moseby.rooms:read` | Read/search rooms, including beds, prices and availability |
+| `moseby.venues:read` | Read shared venues |
+| `moseby.bookings:read` | Read bookings, embedded room reservations and keys |
+| `moseby.bookings:write` | Issue and deactivate room keys |
+| `moseby.guests:read` | Read/search guests, parties and party details |
+| `moseby.guests:write` | Update guest fields and add party details |
+| `moseby.activities:read` | Read/search activities and guest reservations |
+| `moseby.activities:write` | Cancel activity reservations |
 
-Names use the project spelling and are case-sensitive: `Moseby.guests:read`.
+Permission names use the lowercase project spelling and are case-sensitive: `moseby.guests:read`.
 Periods separate the application/resource path; the colon separates the action.
-`Moseby:read` covers resource reads and `Moseby:write` covers resource writes.
+`moseby:read` covers resource reads and `moseby:write` covers resource writes.
 Write does not imply read; grant both for both capabilities. Broad grants do not
 bypass hotel scope, thread ownership, immutable fields, or lifecycle checks.
 An unknown staff role grants no permissions.

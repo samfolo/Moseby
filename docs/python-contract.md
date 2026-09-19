@@ -13,17 +13,17 @@ proposed lifecycle details. This document records the approved foundation.
 
 | Operation | Proposed permission | Purpose |
 | --- | --- | --- |
-| `QUERY /rooms` | `Moseby.rooms:read` | Search configuration, nightly prices and dated availability |
-| `GET /rooms/{id}` | `Moseby.rooms:read` | Read configuration with its current nightly price |
-| `GET /guests/{id}` | `Moseby.guests:read` | Read one guest for one stay |
-| `PATCH /guests/{id}` | `Moseby.guests:write` | Change only the explicitly masked guest fields |
+| `QUERY /rooms` | `moseby.rooms:read` | Search configuration, nightly prices and dated availability |
+| `GET /rooms/{id}` | `moseby.rooms:read` | Read configuration with its current nightly price |
+| `GET /guests/{id}` | `moseby.guests:read` | Read one guest for one stay |
+| `PATCH /guests/{id}` | `moseby.guests:write` | Change only the explicitly masked guest fields |
 
 This is a naming and generation sample, not the full API catalogue. The other
 resources remain in [the API review](api-overview.md). Every draft handler raises
 501. There is no database access, permission enforcement or running server here.
 
 `x-permissions.anyOf` accepts either the named resource capability or its broad
-`Moseby:read` / `Moseby:write` grant. Broad grants preserve all data scopes. The proposed
+`moseby:read` / `moseby:write` grant. Broad grants preserve all data scopes. The proposed
 `x-hotel-scoped: true` additionally limits records through their hotel
 association. False removes that ownership filter for shared venues/activities;
 it does not remove the permission requirement. These are our extensions, not
