@@ -6,7 +6,8 @@ This is the review checklist for the current design. It consolidates the
 The subsequent A/B review is captured in [Checkout lifecycle](checkout-lifecycle.md).
 The final [runtime review](runtime-review.md) consolidates the subsequent
 permissions, execution, recovery and scheduling walkthrough.
-The [resource and API overview](api-overview.md) is the next review surface.
+The [API contract](api-overview.md), [runtime contract](runtime-review.md), and
+[permission/tool review](permissions-and-tools.md) are the current review surfaces.
 This checklist adds no tables or indexes; answered parts are noted below.
 
 Unchecked items are questions, not instructions to build more features. Answer
@@ -120,12 +121,11 @@ state transitions are not agreed.
   treatment of existing reservations when a room goes out of service. See
   [the bed relationship review](data-modelling.md#bed-relationship-latest-review).
   Check-in records and the arrival/departure logbook remain deferred.
-- [ ] **B5 — What ends a key's access?** Decide whether keys are retained after
-  deactivation, and approve or replace the draft's `deactivated_at` field. Explain
-  shortening/extending stays, moving rooms, and cancelling a booking. The key
-  only references a room today: there is no stay link to distinguish keys for
-  different visits to that room. Decide how the application finds the keys to
-  change without inventing a guest owner or a door-lock integration.
+- [ ] **B5 — Key validity.** Answered: `deactivated_at` and a room-reservation
+  link are selected; keys have identity but no guest owner. Current SQL remains
+  room-only. Specify retained/deleted history, identity linkage through reservation
+  revisions, and effective-access checks for changes/cancellations. A later stay
+  must never revive an earlier key. Physical lock integration stays deferred.
 
 **Done when:** we can walk through a room change, guest departure, and booking
 cancellation without losing the original agreement or leaving unintended access.
@@ -204,8 +204,9 @@ still do not identify who took an action.
   member; carry its identity through the service layer. The agent inherits user
   permissions. Bookings include allocations/keys; guests include parties; rooms
   include beds. Final permission mapping follows API design. Staff belong to one
-  hotel; venues/prices have no hotel-owner field. Still open: exact operation
-  grants and thread access; complete audit is deferred.
+  hotel; venues/prices have no hotel-owner field. Threads now have creator-only
+  access and fixed permission snapshots, bounded by current authority. Still open:
+  exact operation grants and data scopes; complete audit is deferred.
 - [ ] **E3 — Classification outcomes.** Answered: guest references use a known,
   versioned JSON-array shape. Programmatic correction is deferred. Still open:
   where the format version lives, save-before/after-classification, ambiguity,
@@ -228,15 +229,17 @@ can interrupt a wait. See [runtime review](runtime-review.md).
 - [ ] **F1 — Run and record schema.** Define exact states, record kinds and links
   among input, run, model request, tool call, job and result. Source history must
   support rebuilding the projection without changing thread identity.
-- [ ] **F2 — Pending input.** Durable queued input is selected. Define storage,
-  ordered batch consumption and request-inclusion tracking. Direct classifier
+- [ ] **F2 — Pending input.** Durable thread mailbox/inbox is selected. Define
+  storage, ordered batch consumption and request-inclusion tracking. Direct classifier
   handling must not require a main-model request to count as handled.
 - [ ] **F3 — Steering checkpoints.** Ended-target steering becomes ready input;
   it must respect a newer active run. Define safe checkpoints, ownership and
   wake consumption. Ending a wait does not cancel external work. A generic sleep
   tool remains unselected.
-- [ ] **F4 — Context and output.** Filter durable records into model context.
-  Define partial-stream handling and complete tool-call persistence. Compaction,
+- [ ] **F4 — Context and output.** Our versioned, typed storage is independent
+  of provider schema. Classifier decisions are excluded from main-model messages.
+  Define persisted format markers, inference snapshot storage, partial-stream
+  handling and complete tool-call persistence. Compaction,
   broad context-query tools and classifier tool discovery are deferred. Fresh
   time/world context and helper-title behaviour remain to be specified if used.
 
@@ -245,35 +248,30 @@ response, including steering and classifier-only handling.
 
 ## G. External work, workers and recovery
 
-**Progress:** durable jobs, claim tokens/heartbeats, linked completion records,
-coarse progress and backoff/jitter are selected. One simulated integration is
-enough. Queueing alone is not a safe-retry guarantee.
+**Progress:** separate jobs and tasks are selected for learning fan-out. Workers
+claim tasks, superseding the earlier job-level claim. Claims remain a separate
+table. One registered job type with one task is a valid initial implementation.
 
-- [ ] **G1 — Job representation.** Specify job/input/operation identities, states,
-  result/failure, timestamps and call/run links. Fast local tools may be
-  synchronous. Stage-by-stage workflow machinery is not required.
-- [ ] **G2 — Reliable handover and completion.** Accepted: atomic call/job
-  creation and atomic completion plus outbox intent. Appending to thread history
-  and consuming that intent must happen together. Define exact representations
-  and duplicate prevention. Separate saved result from model inclusion.
-  Distinguish a pending tool result from a later update after job acknowledgement.
-  Handle duplicates, late results and requests for additional input.
-- [ ] **G3 — Claims.** Accepted: a separate claims table and rejection of obsolete
-  tokens in the protected transaction. Define heartbeat/lease durations and
-  the single-current-owner constraint. Recover
-  expired ownership; reject stale-token writes. Restarting one process must not
-  reset live workers' claims. Tool jobs must run while the agent is suspended.
-- [ ] **G4 — Retry and cancellation.** Notification idempotency keys are selected.
-  Define other stable operation IDs, attempt limits, unknown-outcome reconciliation
-  and cancellation scope. Use the accepted wake-event table in
-  [runtime review](runtime-review.md#accepted-wake-rules).
-  Real network publication and database acknowledgement are separate boundaries.
-  Backoff does not prevent
-  repeated side effects. Closing a connection is not proof of remote cancellation.
-  Preserve relevant late outcomes without automatically restarting a cancelled run.
+- [ ] **G1 — Job/task state machines.** Define handler types, task readiness,
+  inputs/results and job aggregation. Retry counters live on independent tasks;
+  an attempts table is not required. Decide parallel-branch failure/cancellation
+  and which component creates successor tasks. No general workflow DSL is needed.
+- [ ] **G2 — Atomic handover.** Accepted: persist queued calls/jobs/initial tasks
+  together; persist task outcome plus parent transition/next tasks together;
+  persist terminal job outcome plus outbox together. Append thread result and
+  consume outbox together. Define uniqueness so retries and competing branch
+  completions do not duplicate tasks/results. One job result answers its call.
+- [ ] **G3 — Claims.** Claim table now references tasks. Define atomic claim,
+  heartbeat/expiry and stale-token checks in protected writes. Only expired
+  ownership is reclaimed. Task work runs while the agent is suspended.
+- [ ] **G4 — Retry and cancellation.** Request IDs are command idempotency keys;
+  backing deduplication state is required, but no public receipts resource.
+  Define scope/retention, attempt budgets, external unknown outcomes and task
+  cancellation. Use accepted wake rules. Publication means a SQLite event append;
+  actual external sends have separate delivery guarantees.
 
-**Done when:** work survives a restart without lost dispatch, duplicate effects,
-or a stale worker advancing the thread.
+**Done when:** independent tasks can run/retry without replaying completed branches,
+losing dispatch, duplicating job results or allowing stale-owner writes.
 
 ## H. Scheduling and proactivity
 
@@ -284,9 +282,10 @@ notifications are simulated/logged; no separate pubsub system is required.
 - [ ] **H1 — Schedule schema.** Define schedule identity, recurrence/one-off time,
   action, destination, enabled state and author. A tick discovers due work;
   workers execute it. Cron library and process topology remain unselected.
-- [ ] **H2 — Occurrence handover.** Define occurrence identity and atomic creation
-  of accepted work. Preserve its inputs across schedule edits. Decide overlapping
-  occurrences. A cron expression alone does not stop duplicate dispatch.
+- [ ] **H2 — Occurrence handover.** A separate, gateway-readable occurrence table
+  is selected. It records an accepted due firing before completion, not hypothetical
+  future matches. Define unique identity and atomic occurrence/job/task creation.
+  Preserve accepted inputs across schedule edits; decide overlapping firings.
 - [ ] **H3 — Recovery and relevance.** Earlier scope allows skipping occurrences
   missed during downtime; accepted jobs still recover. Define wake consumption
   and expected-state checks, logging irrelevant reminders as skipped. Classifier
@@ -295,10 +294,10 @@ notifications are simulated/logged; no separate pubsub system is required.
 **Done when:** a due occurrence reliably becomes work, stays independent of later
 schedule edits, and skips reminders whose underlying facts no longer hold.
 
-## SQL choices requiring review, not silent approval
+## SQL status and remaining representation review
 
-These are already present to make the draft executable. Keep/change/defer each
-when reviewing the relevant section; do not treat their existence as agreement.
+These choices already exist in the draft. Accepted changes not yet implemented
+are identified explicitly; the SQL is not the current decision source.
 
 | Draft choice | Review with |
 | --- | --- |
@@ -309,7 +308,7 @@ when reviewing the relevant section; do not treat their existence as agreement.
 | One staff member belongs to one hotel — accepted | E2 |
 | Venues and prices have no hotel-owner field — accepted | Cross-hotel venue/activity use allowed; permission rules still apply |
 | Room `number_of_beds`, `max_occupants`, category, tier and operational status remain in SQL | B4 — beds table and `in_service` selected; derived occupancy still needs its scope assumption |
-| Room-only key reference, nullable deactivation time, retained record | B5 |
+| SQL still has room-only key; reservation reference and `deactivated_at` now selected | B5 — DDL pending; retention open |
 | One activity reservation per guest; maximum booking size can be null | C1 |
 | Activity definitions mutable without history — accepted; cancellation representation still open | C3 |
 | Highest price revision is current; reservations pin `(price_id, revision)` | D1, D2 |
@@ -327,15 +326,15 @@ list does not authorise adding indexes now.
   guest/activity reservations, and duplicate submissions. Name, amount and
   timestamp equality are not substitutes for identity.
 - [ ] **Membership and ownership:** activity guest belongs to the stated party;
-  room belongs to the booking's hotel; price/venue references obey chosen hotel
-  boundaries. Party-detail array validation checks known IDs from that party.
+  room belongs to the booking's hotel; venue/price use has no hotel-owner filter
+  but must satisfy operation permissions. Party-detail array validation checks known IDs from that party.
   Independent foreign keys currently do not prove these paired relationships.
 - [ ] **Minimum structure:** confirming creates the initial booking revision,
   one party, required guests and room allocations together. A foreign key only
   checks a referenced parent; it does not force child rows to exist.
 - [ ] **Intervals and occupancy:** define boundary equality (checkout and next
-  check-in at the same time), cleaning buffers, and overlapping live holds and
-  reservations. Check party accommodation across every part of its stay, not
+  check-in at the same time), and overlapping live holds and reservations.
+  Cleaning remains outside scope. Check party accommodation across every part of its stay, not
   by adding capacities of rooms booked on different dates.
 - [ ] **Activity limits:** capacity shared with holds if adopted, venue rules,
   party booking size, ages, and concurrent requests for the last place. Check
@@ -383,9 +382,10 @@ These are deferred scope, not gaps to solve now:
 - Hotel-local timezone support; keep UTC for the initial version.
 - Production-scale database tuning and performance indexes.
 
-## Start with one concrete example
+## Next review
 
-The [checkout and room-change diagrams](checkout-lifecycle.md) now cover that
-example. Review the remaining A/B decisions there before continuing with C.
-The retention terminology and the late-payment edge are recorded in the same
-place; no full payment integration is required to discuss them.
+Use the [permission/tool operation map](permissions-and-tools.md) for a short
+capability pass, then select dependencies and implement a small vertical path.
+The walkthrough is complete; unchecked local decisions remain visible above.
+Do not restart the whole domain review or silently treat every checkbox as a
+new feature requirement.

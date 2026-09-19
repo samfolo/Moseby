@@ -34,6 +34,13 @@ one hotel per staff member, and no hotel-owner field on venues/prices. A version
 JSON-array shape is selected for party references; version storage is still open.
 Runtime, permission, job and schedule decisions remain notes, not SQL tables.
 
+The canonical [API contract](../docs/api-overview.md) and
+[runtime contract](../docs/runtime-review.md) now include reservation-linked keys,
+creator-only threads, mailboxes, separate jobs/tasks with task claims, and a separate
+schedule-occurrences table. None of those runtime tables or the key-link change
+has been implemented here. Internal prices/beds/reservations have no standalone
+agent API. Schema implementation follows the contract; old SQL does not overrule it.
+
 No performance indexes are included. Primary keys and the one-to-one party link
 are structural constraints; SQLite may create internal indexes for them. Staff
 code uniqueness, hotel-scoped room labels, and other business uniqueness rules

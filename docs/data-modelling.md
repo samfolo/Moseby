@@ -107,8 +107,7 @@ The existing SQL still has `error`; remove it in the next DDL revision.
 Cancellation is now terminal: a cancelled booking cannot be reinstated. Booking
 again creates a different booking. History retains the cancellation, but no
 special reinstatement revision is needed. The SQL enforces this on booking
-revision history. This does not yet decide whether a separately cancelled
-activity reservation can be reinstated under an otherwise valid booking.
+revision history. Individual activity cancellation is also now terminal: rebooking uses a new ID.
 
 Before this split, awaiting confirmation held capacity, in progress did not,
 and under revision retained an existing allocation. We need to carry those
@@ -401,14 +400,15 @@ on the room would not describe each issued key.
 A lost key should be deactivated, with the loss recorded as the reason.
 Lost is not a separate key status.
 
-An issued key opens one specific room. It references that room, not the whole
-booking, and does not need an individual guest owner. This replaces the earlier
-proposal to attach keys to bookings. Staff can issue another key for the same
-room without changing the booking or charging for it.
+An issued key now references a specific room reservation, superseding the earlier
+room-only link. Its room and booking are derived from that reservation. It has
+its own ID for targeted deactivation but no individual guest owner. Staff can
+issue another key for the same reservation. Effective access must also check the
+current reservation and booking; a later stay cannot reactivate an old key.
 
-Proposed details are a key ID, a room ID, an optional human-readable code, an
-effective-from time, an effective-to time, and a deactivation reason when
-relevant. The effective times are independent of room-reservation times because
+Current details are a key ID, a room-reservation ID, an optional human-readable
+code, effective-from/effective-to times, `deactivated_at` and a deactivation
+reason when relevant. The effective times are independent of room-reservation times because
 keys can be issued or replaced during a stay. The latest choice is a freeform
 deactivation reason and no separate active/inactive status column.
 
@@ -422,7 +422,8 @@ The key journey is:
 2. A guest may report a particular key lost.
 3. Staff deactivate that key and can issue a replacement.
 
-We have not yet chosen the final key properties or how they link to room access.
+The reservation link and deactivation field are selected; mapping that link to
+stable reservation identity in the revision-based SQL is still to implement.
 Tracking which individual guest sleeps in a room is outside the model.
 Integration with physical door locks is not specified.
 

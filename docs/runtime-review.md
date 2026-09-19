@@ -1,233 +1,210 @@
-# Runtime review: accepted direction and remaining mechanics
+# Current runtime contract
 
-This consolidates the final people/permissions and runtime walkthrough.
-It supplements [runtime notes](agent-runtime.md) and the
-[review checklist](design-review.md). Decisions and implementation proposals
-are separated. No runtime tables, indexes or execution code are added here.
+Canonical runtime decisions after the complete walkthrough. This replaces earlier
+alternatives in [runtime notes](agent-runtime.md). The [API contract](api-overview.md)
+and [permission/tool review](permissions-and-tools.md) cover their own boundaries.
+**Selected** means accepted in discussion; **proposed** means still reviewable.
+No runtime DDL, application code or dependency selection is included.
 
-## Decisions and scope
+## Selected architecture and scope
 
-- Seed one acting staff member for the demo and pass its ID through the service
-  layer. Authentication and the complete audit system can wait. The application
-  supplies identity; the model does not choose it.
-- Staff belong to one hotel. A guest belongs to one party, a party to one booking,
-  and a booking to one hotel. Returning people get new records for the new stay.
-- The agent has the acting user's permissions. Define exact permission rules
-  after API operations. Bookings cover room reservations and keys; guests cover
-  parties; rooms cover beds. Activities are a separate candidate because guest
-  itineraries disclose more than basic guest information. No separate agent
-  endpoint for listing individual beds is required.
-- Venues and prices have no hotel-owner field. Cross-hotel activity/venue use is
-  allowed in this demo; this does not merge parties or remove room/booking links.
-- Keys use `deactivated_at`. Amounts use integer currency minor units. Guest
-  information and activity definitions are mutable without their own change
-  histories. Party-detail guest references use a known, versioned JSON-array
-  shape; where that version lives remains to be selected.
-- Party details already have a table. Programmatic correction of their guest
-  references is a later feature; classification failure/ambiguity still needs
-  a first-version outcome. No semantic-search dependency is required.
-- Tools generally invoke application/API operations through a dispatcher with
-  policy checks. Cheap local operations may complete synchronously.
-- Durable thread history is a superset of model context: user/assistant content,
-  tool calls/results, job and control events can coexist. A context builder
-  selects relevant records; not every event must be sent to the model.
-- An optional classifier can route input to a bounded operation before the main
-  model. Tool discovery and expanded-context access are later experiments.
-  Classified calls still require valid arguments and permissions. Provider
-  limits/prices mentioned in discussion have not been verified in this pass.
-- Keep one active run per thread. An external job normally suspends that same
-  run. Scheduling independent work for later is a separate operation.
-- Ordinary input queues behind the current run. When eligible, take the current
-  batch in order. Forced steering can end a wait while external work continues.
-  A steer targeting an ended run becomes ready thread input, subject to any
-  newer active run. No second concurrent owner may advance the thread.
-- External work is durable, with job identity, tool-call association, status,
-  claim token and heartbeat. Completion produces a linked thread record.
-  Progress can be coarse. A per-job workflow/stage engine is not required.
-- Accepted tool calls and job records are saved together in one database
-  transaction. Completion saves its outcome and durable delivery intent together;
-  consuming that intent and appending the thread record must also be atomic.
-- Worker claims have their own table. Obsolete claim tokens must not authorise
-  writes. Exact fields, expiry and claim-history retention remain to be designed.
-- Every notification delivery has an idempotency key retained across retries.
-  Simulation can record emission atomically in the database; real external
-  delivery has a separate acknowledgement boundary, described below.
-- Retry policy uses exponential backoff and jitter. Retry limits, timeouts and
-  operation-specific safety are still to be defined; queue membership alone
-  does not establish that an operation is safe to repeat.
-- Editing a schedule does not retract already accepted work. The schedule is a
-  trigger; existing jobs continue independently. Separate explicit cancellation
-  may still target those jobs.
-- Reminders recheck the facts that justified them before acting. If those facts
-  no longer hold, record that the reminder was skipped. Classifier judgement is
-  optional and cannot replace required state/permission checks.
-- Notifications are initially simulated and logged as external work. No separate
-  notification broker, subscription system or real provider is needed now.
-- Token accounting and richer telemetry are deferred. Worker recovery and
-  schedule-to-job handover still need concrete transaction rules.
+- Python, Pydantic, a manually implemented turn loop and durable thread history.
+- One main inference provider behind an inference gateway. Core storage uses our
+  own schema, not the provider's message schema. Jev is a separate classifier.
+- One active run per thread, including sleeping runs; concurrency across threads.
+- Thread records are ordered source history; threads are deterministic projections.
+- Seed one staff member. Thread creator and creation-time permissions are stored;
+  creator-only access and current-authority checks apply. Raised permissions need
+  a new thread. Complete authentication/audit infrastructure is deferred.
+- Queued input is a thread mailbox/inbox. Ordinary input waits; consume the current
+  eligible batch in order. Steering may interrupt a wait without cancelling its job.
+- SQLite stores work and published events. No separate notification broker.
+- Jobs and tasks are separate for the explicit learning goal of worker orchestration.
+  **This supersedes one job as the worker's claimable unit.** Workers claim tasks.
+- Claims have their own table. Schedule occurrences also have their own table and
+  are accessible through the gateway. Exact DDL comes after the contract review.
 
-## Corrections to assumptions, for implementation review
+## Jobs, tasks and claims
 
-### A recorded result is one milestone
+| Concept | Meaning and proposed minimum data |
+| --- | --- |
+| Job | Overall operation: ID, registered job type, actor/request/call/run links, input, workflow state, result/error, timestamps |
+| Task | Executable piece: ID, job ID, registered handler, input, readiness/state, result/error, attempt count, available/start/finish times |
+| Claim | Current ownership of one task: task ID, worker, unique token, heartbeat and expiry |
 
-A matching tool-call ID establishes that a result has been saved for that call.
-It does not prove success (the result may be an error), inclusion in a model
-request, or handling by the model. Track these links separately where needed.
-Tool name alone is not identity. Namespace provider call IDs by their request
-or use an internal ID; several calls may invoke the same tool.
+Job and task separation is selected; the listed fields and exact state enums are
+proposals. Each initial job may have one task. A bounded job handler can later
+create several ready tasks and combine their results. No arbitrary workflow DSL,
+general dependency editor or separate task microservice is required.
 
-No saved result does not prove that the outside action never happened. A worker
-can finish an external operation and crash before saving its result.
+The queue handles readiness, claims, delivery and retries. A job-type handler
+knows what task outcomes mean and which work follows. The queue does not need
+hotel business logic. Task inputs/results use registered schemas. Slow external
+work and parallel execution must not keep a database transaction open.
 
-### Persisting work and replaying it safely
+A booking and its reservations must be created by one compound domain operation
+when they need one transaction. Independent task/tool/API calls do not share a
+transaction merely because they belong to the same job. Fan out independent
+work; do not split an atomic domain change just to demonstrate concurrency.
 
-Accepted rule: persist accepted tool calls and their runnable job records in one
-local transaction. On completion, persist the outcome and an outbox entry for
-delivery to the thread together. The consumer appends the linked thread record,
-updates the thread projection, and marks the outbox entry consumed in one local
-transaction. Exact table/column names remain open. Retries must find the existing
-result rather than append another copy. If completion writes the thread directly
-in the same transaction, an extra outbox hop is unnecessary; that layout is still
-an implementation choice, not a requirement for two independent result writes.
+### Proposed completion rules for the learning implementation
 
-There must be no unprotected gap where history says a call exists but its job was
-never queued. Dead-letter storage represents work the queue already knows about;
-it cannot close this gap.
+1. Persist a queued tool call, its job and initial tasks together.
+2. Claim one ready task atomically. Only its current, unexpired token may heartbeat
+   or commit protected changes. A replacement claim invalidates the old token.
+3. Persist task outcome and update the parent workflow/create successor tasks in
+   one transaction. Concurrent branch completions must not schedule the next
+   phase twice or lose each other's progress.
+4. Emit the one logical job result when the job reaches its selected terminal
+   outcome; individual tasks are not multiple final answers to the same tool call.
+5. Save that job result and completion-outbox intent together. Consume the intent,
+   append the linked thread record and update its projection together. A duplicate
+   delivery finds the same result identity instead of appending a second result.
 
-Proposed rule: logical operations have stable request IDs reused across retries.
-Handlers/provider integrations must make repeating an ID return the original
-outcome, or reconcile an unknown outcome before retrying. One logical call can
-have several attempts, but only one accepted terminal result. Progress records
-are separate. Exponential backoff changes timing, not duplicate-side-effect risk.
+The atomic boundaries are selected; exact parent aggregation/branch failure and
+cancellation rules still need a small state-machine pass. A job with no more work
+must not finish while other required branches can still generate tasks. Example
+rule for review: success requires all required tasks to succeed and no further
+phase to remain. This is not yet a chosen general workflow policy.
 
-### Notifications and the external boundary
+### Retries
 
-Notification idempotency is now selected. Recommended key scope is one logical
-delivery to one recipient through one channel, for a specific event/change.
-Retries reuse the key; a new notification has a new identity. Exact encoding is
-open. A key stored locally only prevents local duplication; the provider or
-receiver must honour it too if repeated external sends are to be deduplicated.
+An attempt is another execution of the same logical task. Task attempt counters,
+last error and timing are enough initially; no separate attempts table or public
+resource is required. A job can expose aggregated retries. A single job counter
+cannot independently govern two parallel branches' retry budgets. Restarting a
+whole job is different from retrying one task and must not be implicit.
 
-Publication now explicitly means appending to a retained event stream. Save that
-record and published state in one transaction. Consumers read after their own
-cursor and own handling/cursor advancement. A consumer crash does not undo the
-publication; replay returns the same event. No receipt is required to mark the
-producer's publication complete. Cursor scope/order and retention remain open.
+Backoff and jitter are selected; attempt limits and retryable error categories
+remain open. Stable task/effect identities survive retries. Reclaim expired
+leases, not every claim when one process restarts. Stale-token checks protect
+local writes, not external side effects; handlers still need deduplication or
+unknown-outcome reconciliation. Job type/input do not authorise arbitrary code.
 
-Actual email/phone delivery is still simulated. With real email, HTTP or another
-broker, network delivery
-and a local database write do not share that transaction. Persist intent first,
-send using the stable key, then record acknowledgement. If a crash happens after
-remote acceptance but before that acknowledgement is saved, retry/reconcile the
-same operation. Backoff alone does not resolve that unknown outcome.
+## Request IDs, deduplication and outbox
 
-Published/accepted is not proof that the final recipient received or read the
-message. Lack of a delivery receipt alone must not trigger a new logical send.
-The demo records simulated publication; real delivery receipts remain deferred.
+`request_id` is the selected client idempotency key, not a second parallel field.
+Its practical meaning requires persistent evidence of the accepted operation:
+ID scope, operation and input identity, and resulting resource/job/outcome.
+That information may live on the affected operation/job or an internal shared
+ledger. There is no selected standalone request-receipts resource or API.
 
-### Cancellation is scoped
+Proposed rules: atomically admit one logical command; retries return its accepted
+job/result; the same ID with different input is rejected. Retention, conflict
+responses and sync-operation storage are still to be defined. Multiple effects
+from one request need stable child identities, e.g. one notification per recipient.
 
-Desired behaviour: stop the current run and its cancellable work; preserve useful
-late outcomes. The exact run/job scope remains to be selected. Do not interpret
-this as cancelling unrelated hotel work or permanently closing the thread.
+A completion outbox is different: it records a result that still needs delivering
+to its thread. It does not answer whether a client request was previously accepted.
+Neither the ID string alone nor the presence of an outbox proves exactly-once
+external effects. Notification publication is defined below.
 
-Stopping a local wait or network connection does not prove that a remote booking,
-message or payment was cancelled. Disposable read output can be discarded, but
-side-effect outcomes may still need reconciliation. Record late outcomes without
-automatically reviving a cancelled run. Callback delivery and held connections
-are transport choices, not evidence that cancellation succeeded remotely.
+## Durable record schema versus provider schema
 
-#### Accepted wake rules
+Selected: persist our own versioned record kinds. A discriminated envelope is
+proposed, with record ID, thread ID, sequence, kind, format version, recorded time,
+optional run linkage and a payload validated according to kind/version.
 
-The latest question is how a stopped run differs from a sleeping run. Keep the
-distinction explicit: sleeping is a waiting active run; cancellation is terminal
-for that run. The thread remains open. The following behaviour is now accepted:
+Proposed kinds (not a final exhaustive enum):
 
-| Incoming event | Behaviour |
+| Kind | Purpose | Main-model context treatment |
+| --- | --- | --- |
+| User message | Accepted conversational content | Eligible conversational input |
+| Assistant message | Text and complete tool calls with call IDs/arguments | Translate via inference adapter |
+| Tool result | Call-linked result or error; job link where asynchronous | Translate respecting call/result ordering |
+| Classifier decision | Routing/classification input references, decision or unresolved outcome | Exclude by default; selected operation/result has its own record |
+| Inference request | What a specific main-model request submitted | Internal execution evidence, not another user message |
+| Run/job control event | Wait, cancellation, recovery or other execution transition | Internal by default; select contextual notices deliberately |
+
+Use explicit record-kind selection when constructing context, not a client-set
+flag that lets arbitrary internal events become model instructions. Thread history
+is a superset of model context. Classifier provider payloads never need to masquerade
+as chat messages. UI/main API response schemas are also distinct from storage types.
+
+Format version can be defined by a code constant, but persist the version on each
+record/payload envelope so future code can interpret old data. Provider model/API
+versions and our format version are separate. No format-version registry table
+is required. Party-reference JSON version placement remains a DDL detail.
+
+### An inference request is not a user message
+
+It can include system instructions, selected conversation/tool results, offered
+tool schemas, model/options and fresh runtime context. One user input may lead to
+many requests; a classifier-only path may produce none. Record identities must
+distinguish those calls and their results.
+
+Proposed first approach: retain the exact outbound request snapshot, including
+provider/model metadata and record links, as internal execution data. Alternative:
+retain immutable inputs sufficient to reconstruct it. Exact payload storage and
+retention remain open. A full snapshot improves reproducibility but duplicates
+sensitive content and must follow thread access/retention rules. It must never
+be copied into model context as though the user said it.
+
+A persisted tool result proves a recorded outcome, not that the model saw it or
+that the operation succeeded. A missing result does not prove the remote action
+never occurred. Partial streams and crash recovery of completed calls still need
+an implementation policy. Compaction stays separate from persistent history.
+
+## Accepted wake rules
+
+| Event | Behaviour |
 | --- | --- |
 | Due continuation for a waiting run | Resume that same run |
-| Old wake timer for a cancelled run | Ignore/consume it; never revive that run |
-| Late result for a cancelled run | Record/reconcile the outcome without automatic agent continuation |
-| New explicit user message | Start a new run when the thread is free |
-| Independent scheduled action targeting the thread | Start a new run when free, or queue behind its active run |
+| Old timer for a cancelled run | Consume/ignore it; never revive the run |
+| Late result for a cancelled run | Record/reconcile without automatic continuation |
+| New user message | Start a new run when the thread is free |
+| Independent scheduled input | Start a new run when free, otherwise queue |
 
-An independent scheduled action can also call an application handler directly;
-it need not start an agent run. Existing scheduled work remains independent as
-previously agreed. Event purpose and target run determine eligibility; arrival
-after cancellation alone does not. Exact cancellation scope for dependent jobs,
-consuming old wake conditions, and treatment of previously queued user input
-remain to be specified. Do not silently discard already accepted input.
+Scheduled work may call an application handler without starting an agent run.
+A steer targeting an ended run becomes ready input subject to any newer active
+run. Cancellation is terminal for that run, not for the thread. Cancelling a
+wait does not prove the remote action stopped. Exact task cancellation scope and
+handling of already-queued user input remain open; do not silently lose input.
 
-### Worker claims and recovery
+## Schedules and occurrence records
 
-Selected: claims live in a separate table, and stale tokens cannot commit.
-Proposed fields are job ID, owner, unique claim token, heartbeat time and expiry.
-One job may have only one current owner; how historical claims are retained is
-open. The token check and protected writes must share the same transaction;
-checking first and committing later would leave a race.
+A schedule is the recurrence rule/action. A schedule occurrence is one due firing
+accepted by the scheduler, recorded before the work succeeds. It may still be
+queued, running, failed or skipped. We do not prepopulate all hypothetical future
+matches. The separate occurrences table and gateway access are selected.
 
-Proposed lease rule: a worker owns a time-limited claim renewed by heartbeats. Recovery
-reclaims expired claims, not every claimed job whenever one process starts.
-Other workers may still be alive. Each new claim gets a new token; local writes
-from the old token must be rejected. This does not itself prevent duplicate
-external side effects, which need the stable operation identity above.
+Proposed fields: occurrence ID, schedule ID/revision, intended due time, acceptance
+time, input snapshot, job link and outcome. Choose one unique occurrence identity
+and create it with the initial work atomically. Repeated ticks cannot make duplicate
+jobs. Schedule edits do not retract accepted occurrences/jobs. Earlier scope allows
+skipping missed ticks during downtime while recovering already accepted work.
 
-Keep `created_at` distinct from `started_at`: queue age is not execution duration.
-A job heartbeat indicates ownership, not business progress or external success.
-Tool jobs remain eligible while their agent run is suspended.
+Use an existing recurrence representation and parser. Classic cron timing fields
+are covered by [POSIX crontab](https://pubs.opengroup.org/onlinepubs/9699919799/utilities/crontab.html).
+The iCalendar recurrence alternative is [RFC 5545](https://www.rfc-editor.org/info/rfc5545/).
+Cron is not one universal IETF dialect: seconds/year extensions and matching
+semantics vary. Recommendation: a named five-field cron dialect in UTC, with a
+separate timestamp for one-off actions. Dialect and library remain unselected;
+verify their matching semantics, not just the number of fields. No custom parser
+or shell command execution is implied.
 
-### Scheduler responsibilities
+A tick finds due work; task workers execute it. They may run in one process with
+bounded concurrency. Reminder tasks recheck the expected booking/activity facts;
+record irrelevant reminders as skipped. Classifier relevance is optional and
+cannot override failed deterministic validity/permission checks.
 
-A periodic tick finds due occurrences and makes jobs available; workers do the
-work. A cron library can calculate times but does not by itself provide durable
-handover, recovery, or duplicate prevention. This can initially live in one
-process, with separate scheduling and execution tasks. Python still requires
-bounded concurrency and coordination. Process topology is not selected.
+## Publication
 
-Proposed occurrence identity: schedule ID, schedule revision and intended due
-instant. Another equivalent identity is possible. Record the occurrence and
-its accepted work together so repeated ticks cannot enqueue it twice. Keep the
-accepted input snapshot when editing the schedule. Earlier notes allow skipping
-occurrences missed during downtime; already accepted jobs must still recover.
+SQLite notification publication is a durable event append plus published state
+in one transaction. Consumers read retained events by cursor and own handling
+and cursor advancement. Replay returns the same event identity. Publication does
+not wait for consumer acknowledgement. Notification requests/recipient effects
+have stable request identities. Exact ordering, retention and audience scoping
+are still to define. Actual email/phone delivery is simulated, not asserted by
+a published event. A future external adapter owns its separate delivery boundary.
 
-Reminder checks should compare current booking/activity state with the expected
-facts, such as the event still being active and its scheduled time unchanged.
-Guest/activity change history is not necessary for that comparison, but the job
-must retain the expected values (or a usable version). Logged notifications must
-remain clearly distinguishable from messages actually delivered.
+## Remaining implementation choices
 
-## Remaining decisions for the API/schema pass
+- Final job/task/run transitions; parallel-branch aggregation/failure/cancellation;
+  initial fan-out demonstration and who schedules successor tasks.
+- Exact record envelopes, inbox consumption, partial streams, inference snapshot
+  storage and classifier ambiguity/failure handling.
+- Lease durations, retry limits, request-ID scope/retention and occurrence identity.
+- API permission matrix, tool exposure, then framework/database/cron/test packages.
 
-1. Runtime record kinds, IDs, state transitions and links among runs, requests,
-   tool calls, attempts, jobs and results; pending-input delivery and batching.
-2. Translate accepted atomic work creation/completion and the separate claim
-   table into constraints and repository operations. Specify claim expiry,
-   safe retries, attempt limits, cancellation scope and unknown external outcomes.
-3. Schedule/occurrence identity, handover, overlapping occurrences, timing and
-   consuming wake conditions once when a steer/result also wakes a run.
-4. Context construction, complete versus partial streamed output, and the initial
-   classifier's ambiguity/failure outcome. Compaction can stay deferred.
-
-These are bounded implementation decisions. They do not require another hotel
-feature review. Original domain questions that were parked remain in the
-central checklist; this walkthrough does not mark them silently resolved.
-
-## Next: API operations before implementation
-
-The author will supply paths. For each operation, specify its purpose, method,
-validated input/output, required permission, transaction boundary, retry identity,
-and whether it returns a result or a job reference. Decide which operations are
-tools after this review; not every table needs a public CRUD endpoint.
-
-Pydantic describes and validates input/output; it does not replace database
-constraints or multi-record transactions. Service operations coordinate work
-and repository calls within a shared transaction. Repositories should not each
-commit independently when their writes form one atomic action.
-
-Server, cron, database-access and testing libraries, folder structure and query
-indexes remain choices for the implementation pass. No framework is selected by
-these notes and no claim is made that the data-access layer already exists.
-
-The consolidated [resource and API overview](api-overview.md) uses the selected
-`request_id` plus `payload` convention. Stable request IDs replace a separate
-client idempotency-key field; retry semantics and scope are proposed there.
+These are local implementation choices. The SQL is not yet a runtime implementation.

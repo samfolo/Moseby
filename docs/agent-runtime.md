@@ -1,7 +1,10 @@
-# Thread and runtime notes
+# Thread and runtime discussion history
 
-These notes capture the current discussion. They are not a schema or an
-implementation plan. Proposed details and open questions are labelled below.
+These notes preserve earlier discussion and rationale. For current decisions,
+use the [runtime contract](runtime-review.md) and [API contract](api-overview.md).
+In particular, workers now claim tasks within jobs; thread access is creator-only;
+mailboxes and gateway-readable occurrence records are selected. Earlier alternatives
+below are not additional requirements or current unresolved questions.
 
 The consolidated review checklist is [Remaining design decisions](design-review.md),
 especially sections F (thread execution), G (work and recovery), and H (scheduling).
