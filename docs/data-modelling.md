@@ -15,6 +15,11 @@ Its [guide](../schema/README.md) labels provisional representations and the
 boundaries still to model. Drafts/holds, payments, external jobs and the agent
 runtime do not yet have final DDL. No performance indexes are being added now.
 
+The latest [runtime and final representation review](runtime-review.md) records
+accepted staff identity, permission direction, versioned party-reference shape,
+mutable guest/activity data, currency minor units and shared venue/price scope.
+It supersedes earlier open questions here on those specific choices.
+
 ## Who uses Moseby?
 
 Hotel staff and concierges use the application. They can see operational
@@ -379,9 +384,10 @@ to the individual room reservation. The latter fits the existing relationship;
 new availability, price and payment must be resolved without invalidating the
 original reservation. No extension workflow is selected yet.
 
-Price sharing across hotels was raised; hotel ownership and permissions for a
-shared price remain open. Money representation is also open. Effective date
-ranges, discounts, room charges, credit, and payment accounting are deferred.
+Prices have no hotel-owner field and may be shared across hotels. Permission to
+publish rates remains open. Amounts use integer currency minor units; supported
+currencies still need choosing. Effective date ranges, discounts, room charges,
+credit, and payment accounting are deferred.
 Price versions describe quoted rates, not proof of a charge or payment.
 
 ## Room keys and claiming a room

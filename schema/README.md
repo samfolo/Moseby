@@ -28,6 +28,12 @@ terminal activity cancellation is not yet enforced. Room reservations already
 have separate `check_in_at` and `check_out_at` per room; no restructure is needed
 for different room dates within a booking. Stay-extension behaviour remains open.
 
+The [final review](../docs/runtime-review.md) accepts `deactivated_at`, integer
+currency minor units, mutable guest/activity information without change history,
+one hotel per staff member, and no hotel-owner field on venues/prices. A versioned
+JSON-array shape is selected for party references; version storage is still open.
+Runtime, permission, job and schedule decisions remain notes, not SQL tables.
+
 No performance indexes are included. Primary keys and the one-to-one party link
 are structural constraints; SQLite may create internal indexes for them. Staff
 code uniqueness, hotel-scoped room labels, and other business uniqueness rules

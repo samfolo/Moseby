@@ -6,6 +6,11 @@ implementation plan. Proposed details and open questions are labelled below.
 The consolidated review checklist is [Remaining design decisions](design-review.md),
 especially sections F (thread execution), G (work and recovery), and H (scheduling).
 
+The latest [runtime review](runtime-review.md) records subsequent decisions on
+batching, steering, claims, schedules and scope. It supersedes earlier open
+questions below where explicitly answered and separates retry/cancellation
+assumptions that still require correction.
+
 ## Thread records and threads
 
 Use thread records for the durable history and threads for the current-state

@@ -4,6 +4,8 @@ This is the review checklist for the current design. It consolidates the
 [domain notes](data-modelling.md), [runtime notes](agent-runtime.md), and
 [SQL draft and guide](../schema/README.md), reviewed against commit `365a435`.
 The subsequent A/B review is captured in [Checkout lifecycle](checkout-lifecycle.md).
+The final [runtime review](runtime-review.md) consolidates the subsequent
+permissions, execution, recovery and scheduling walkthrough.
 This checklist adds no tables or indexes; answered parts are noted below.
 
 Unchecked items are questions, not instructions to build more features. Answer
@@ -169,11 +171,10 @@ proof of payment.
   reservations already have individual arrival/departure times. Still open:
   exact night-count convention, quote validity, stay-extension procedure, and
   activity pricing unit. Hotel-local date differences are recommended for nights.
-- [ ] **D2 — Who shares and manages a price?** Decide whether a price belongs to
-  one hotel or can be shared across hotels, and who may change it. Review the
-  current-version rule, supported currencies, amount representation and currency
-  changes. The draft has no explicit pricing unit on the shared price object;
-  agree how to prevent accidentally treating a nightly rate as an activity fee.
+- [ ] **D2 — Shared rates.** Answered: prices have no hotel-owner field and
+  amounts use integer currency minor units. Still open: who may publish rates,
+  current-version rule, supported currencies and currency changes. The draft
+  has no explicit pricing unit; prevent confusing nightly rates with activity fees.
 - [ ] **D3 — What is the minimum payment story?** Choose staff-recorded external
   payment, explicit simulation, or both. A booking now requires confirmed
   payment (A3). Decide how a payer/contact is identified without
@@ -198,108 +199,92 @@ still do not identify who took an action.
   work. Still open: staff fallback when no contacts exist, phone channel meaning,
   delivery states, duplicate prevention and retries. UI edits must trigger the
   same notification behaviour as agent edits. Urgency/escalation is deferred.
-- [ ] **E2 — How do we attribute actions and restrict access?** Decide how the
-  demo identifies the staff member, what concierge can read/write, and the hotel
-  boundary. Link actions to their staff/system actor and, where applicable,
-  agent run/tool call. Current domain histories lack actor fields. Threads and
-  live subscriptions need access rules as well as the domain API. A role string
-  and stored historical permissions do not themselves enforce current access.
-- [ ] **E3 — What happens when Jev cannot resolve a reference?** Choose whether
-  the detail is saved first, whether creation waits for classification, and the
-  result for ambiguity or service failure. Decide how staff correct references
-  and what changes when text or guest information is edited. Review `NULL`
-  versus `[]` and whether more classification states/evidence are needed. Jev's
-  typed-question capabilities were checked; the multi-guest mapping and thresholds
-  still need an experiment. Ordinary code checks party membership.
-- [ ] **E4 — What is the authority and history of a party detail?** Decide whether
-  to store author, source and time; how to distinguish a request from an observed
-  fact; and how edits are tracked. Define whether a dietary statement in a detail
-  is only supporting evidence or can update a guest's dietary field through an
-  explicit action. No automatic rewrite has been approved.
+- [ ] **E2 — Permissions and attribution.** Answered: seed a single acting staff
+  member; carry its identity through the service layer. The agent inherits user
+  permissions. Bookings include allocations/keys; guests include parties; rooms
+  include beds. Final permission mapping follows API design. Staff belong to one
+  hotel; venues/prices have no hotel-owner field. Still open: exact operation
+  grants and thread access; complete audit is deferred.
+- [ ] **E3 — Classification outcomes.** Answered: guest references use a known,
+  versioned JSON-array shape. Programmatic correction is deferred. Still open:
+  where the format version lives, save-before/after-classification, ambiguity,
+  service failure and validation. Classifier output is not proof of identity.
+- [ ] **E4 — Party detail authority.** Answered: the agent may explicitly record
+  a reported dietary change and update the guest's requirements as one action.
+  A combined transactional operation is recommended, not yet selected. Guest
+  information and activity definitions are mutable without change history.
+  Party-detail authorship/source/time and edit history remain open.
 
 **Done when:** we can identify who changed something, who may see it, who should
 hear about it, and whether model-derived information needs review.
 
 ## F. Durable thread execution and input
 
-**Current gap:** behaviour is described, but no runtime schema exists.
+**Progress:** one active run; external work normally suspends it. Thread records
+hold more than the model sees. Ordinary input is batched when eligible; steering
+can interrupt a wait. See [runtime review](runtime-review.md).
 
-- [ ] **F1 — What starts and ends a run?** Define the run states and links among
-  thread, run, ordered records, model requests, tool calls/results and scheduled
-  input. Decide which record kinds allow current state to be rebuilt, how the
-  projection preserves thread identity, and where provider/model/format metadata
-  belongs. Keep one active run per thread, including suspended runs.
-- [ ] **F2 — How do cued messages move through the lifecycle?** Choose a separate
-  inbox or pending thread records. Specify source, destination, order, target run,
-  message identity, and the three milestones. Decide when request inclusion is
-  recorded, how a failed send is represented, and how retries avoid adding a
-  message twice. One component must own these changes.
-- [ ] **F3 — What does steering do at each wait?** Decide default queue/steer
-  behaviour, safe input checkpoints, which waits return early, and what happens
-  if the intended run has ended. Retain pending external work when ending a wait.
-  Decide whether a sleep tool is exposed; it has not been approved simply because
-  the runtime has timed waits.
-- [ ] **F4 — What context and output are durable?** Define handling of partial
-  streams, complete tool-call arguments, provider errors and context limits.
-  Decide how fresh time/world context is supplied when resuming. Stored times
-  remain UTC, but “tomorrow” still needs interpretation. Compaction, if used,
-  must not replace the durable source history. Automatic title generation is
-  optional; if adopted, record its output and protect later manual title edits.
+- [ ] **F1 — Run and record schema.** Define exact states, record kinds and links
+  among input, run, model request, tool call, job and result. Source history must
+  support rebuilding the projection without changing thread identity.
+- [ ] **F2 — Pending input.** Durable queued input is selected. Define storage,
+  ordered batch consumption and request-inclusion tracking. Direct classifier
+  handling must not require a main-model request to count as handled.
+- [ ] **F3 — Steering checkpoints.** Ended-target steering becomes ready input;
+  it must respect a newer active run. Define safe checkpoints, ownership and
+  wake consumption. Ending a wait does not cancel external work. A generic sleep
+  tool remains unselected.
+- [ ] **F4 — Context and output.** Filter durable records into model context.
+  Define partial-stream handling and complete tool-call persistence. Compaction,
+  broad context-query tools and classifier tool discovery are deferred. Fresh
+  time/world context and helper-title behaviour remain to be specified if used.
 
-**Done when:** we can trace one message through model request, tool call, wait,
-result, and final response, including a steer arriving during the wait.
+**Done when:** we can trace a message through request, call, wait, result and
+response, including steering and classifier-only handling.
 
 ## G. External work, workers and recovery
 
-**Current gap:** desired async behaviour is agreed; execution ownership and
-recovery are not designed. One simulated integration is enough to start.
+**Progress:** durable jobs, claim tokens/heartbeats, linked completion records,
+coarse progress and backoff/jitter are selected. One simulated integration is
+enough. Queueing alone is not a safe-retry guarantee.
 
-- [ ] **G1 — What is a service job?** Specify identity, requested operation/input,
-  relevant party/room, integration name, progress, result/failure, and links to
-  its tool call and run. Separate work completed elsewhere from the act of
-  dispatching it. Decide whether integration handlers can initially be registered
-  in code; a general table of arbitrary endpoints is not required.
-- [ ] **G2 — How do updates resume work?** Choose polling or simulated callback,
-  identify which job each update belongs to, and handle duplicate/late updates.
-  Decide whether the same run waits throughout or a job reference completes the
-  turn and a later input starts another run. Specify the path for an external
-  request for more information and for a result arriving after a steer changed
-  the goal or a booking was cancelled.
-- [ ] **G3 — How does one worker own a piece of work?** Decide what workers claim,
-  how that claim expires or is released after a crash, and how stale workers are
-  prevented from writing an obsolete result. Define which work is eligible while
-  its thread is suspended. Tool work must continue while the agent waits for it.
-- [ ] **G4 — What can be retried or cancelled?** Scope cancellation intent and
-  recovery counters to the appropriate run/job/attempt. Record actual outcomes
-  separately from requests. Decide timeout/retry limits and what to do when an
-  external action may have succeeded but its reply was lost. Repeating a request
-  must not silently duplicate bookings, messages or jobs. Cancelling an agent
-  run does not automatically undo a vendor action or a confirmed hotel booking.
+- [ ] **G1 — Job representation.** Specify job/input/operation identities, states,
+  result/failure, timestamps and call/run links. Fast local tools may be
+  synchronous. Stage-by-stage workflow machinery is not required.
+- [ ] **G2 — Reliable handover and completion.** Choose atomic call/job creation
+  and completion-to-thread delivery. Separate saved result from model inclusion.
+  Distinguish a pending tool result from a later update after job acknowledgement.
+  Handle duplicates, late results and requests for additional input.
+- [ ] **G3 — Claims.** Define heartbeat/lease durations and atomic claims. Recover
+  expired ownership; reject stale-token writes. Restarting one process must not
+  reset live workers' claims. Tool jobs must run while the agent is suspended.
+- [ ] **G4 — Retry and cancellation.** Define stable operation IDs, attempt limits,
+  unknown-outcome reconciliation and cancellation scope. Backoff does not prevent
+  repeated side effects. Closing a connection is not proof of remote cancellation.
+  Preserve relevant late outcomes without automatically restarting a cancelled run.
 
-**Done when:** simulated work survives a restart and reports back without a second
-worker duplicating it or a late result reviving cancelled work.
+**Done when:** work survives a restart without lost dispatch, duplicate effects,
+or a stale worker advancing the thread.
 
 ## H. Scheduling and proactivity
 
-**Current gap:** recurring schedules, individual occurrences and thread wake times
-are distinct, but their records and handover are not designed.
+**Progress:** schedules trigger independent accepted jobs; schedule edits do not
+cancel those jobs. Reminders recheck their relevant facts before acting. Initial
+notifications are simulated/logged; no separate pubsub system is required.
 
-- [ ] **H1 — What does a schedule store?** Specify one-time versus recurring time,
-  action/input, target thread or application handler, enabled state, and author.
-  Choose cron syntax/validation later. A thread's `wake_at` is not a substitute
-  for several independent future actions or a recurring schedule.
-- [ ] **H2 — How does a due occurrence become work?** Define occurrence identity,
-  intended time, actual start/outcome, and a handover that cannot create duplicate
-  work when polled twice. Specify how editing/cancelling a schedule affects work
-  already queued or executing, and how overlapping occurrences are handled.
-- [ ] **H3 — What happens after downtime or an early wake?** Missing scheduled
-  occurrences during downtime may be skipped; that does not permit losing work
-  already accepted. Define recovery and when wake times are cleared/replaced so
-  a steer or result does not cause a second wake. Staff or a changed booking may
-  invalidate a reminder; decide when relevance is checked before action.
+- [ ] **H1 — Schedule schema.** Define schedule identity, recurrence/one-off time,
+  action, destination, enabled state and author. A tick discovers due work;
+  workers execute it. Cron library and process topology remain unselected.
+- [ ] **H2 — Occurrence handover.** Define occurrence identity and atomic creation
+  of accepted work. Preserve its inputs across schedule edits. Decide overlapping
+  occurrences. A cron expression alone does not stop duplicate dispatch.
+- [ ] **H3 — Recovery and relevance.** Earlier scope allows skipping occurrences
+  missed during downtime; accepted jobs still recover. Define wake consumption
+  and expected-state checks, logging irrelevant reminders as skipped. Classifier
+  relevance checks are optional additions to deterministic validity checks.
 
-**Done when:** a saved future action runs once as intended, remains attributable,
-and has defined behaviour when the process restarts or the schedule is edited.
+**Done when:** a due occurrence reliably becomes work, stays independent of later
+schedule edits, and skips reminders whose underlying facts no longer hold.
 
 ## SQL choices requiring review, not silent approval
 
@@ -311,16 +296,16 @@ when reviewing the relevant section; do not treat their existence as agreement.
 | Booking revisions store status/reason only; booking name remains mutable | B2, E2 — this is not a snapshot of the whole stay |
 | `error` remains in SQL but has now been rejected; completed is not terminal in SQL | B2 — remove `error` in the next DDL pass |
 | One party per booking is enforced as “at most one”; first revision and guests must be created by an operation | A3, B3 |
-| Guest names, ages, dietary requirements and party details are mutable without history | B3, E4 |
-| One staff member belongs to one hotel | E2 |
-| Venues and prices have no hotel-owner field | C2, D2, E2 |
+| Guest information mutable without history — accepted; party-detail history still open | B3, E4 |
+| One staff member belongs to one hotel — accepted | E2 |
+| Venues and prices have no hotel-owner field — accepted | Cross-hotel venue/activity use allowed; permission rules still apply |
 | Room `number_of_beds`, `max_occupants`, category, tier and operational status remain in SQL | B4 — beds table and `in_service` selected; derived occupancy still needs its scope assumption |
 | Room-only key reference, nullable deactivation time, retained record | B5 |
 | One activity reservation per guest; maximum booking size can be null | C1 |
-| Activity fields are mutable; no change record or cancellation field | C3 |
+| Activity definitions mutable without history — accepted; cancellation representation still open | C3 |
 | Highest price revision is current; reservations pin `(price_id, revision)` | D1, D2 |
-| Integer currency minor units, zero prices allowed; charging unit implicit | D1–D3 |
-| Party references stored as a JSON array; `NULL` differs from `[]` | E3 |
+| Integer currency minor units accepted; zero-total policy and charging units still open | D1–D3 |
+| Party references as a versioned JSON-array shape accepted; version placement and `NULL` semantics open | E3 |
 | Text IDs, whole-second UTC timestamps, optional country code | Representation pass after domain rules |
 | Sequential revision and immutability triggers, ordinary current-state views | Constraint/history pass below; broader than the original room-only draft |
 
