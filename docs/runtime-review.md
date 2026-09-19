@@ -108,8 +108,14 @@ Retries reuse the key; a new notification has a new identity. Exact encoding is
 open. A key stored locally only prevents local duplication; the provider or
 receiver must honour it too if repeated external sends are to be deduplicated.
 
-For the demo, a simulated emission record and its published status can be saved
-in one transaction. With real email, HTTP or another broker, network delivery
+Publication now explicitly means appending to a retained event stream. Save that
+record and published state in one transaction. Consumers read after their own
+cursor and own handling/cursor advancement. A consumer crash does not undo the
+publication; replay returns the same event. No receipt is required to mark the
+producer's publication complete. Cursor scope/order and retention remain open.
+
+Actual email/phone delivery is still simulated. With real email, HTTP or another
+broker, network delivery
 and a local database write do not share that transaction. Persist intent first,
 send using the stable key, then record acknowledgement. If a crash happens after
 remote acceptance but before that acknowledgement is saved, retry/reconcile the
@@ -131,11 +137,11 @@ side-effect outcomes may still need reconciliation. Record late outcomes without
 automatically reviving a cancelled run. Callback delivery and held connections
 are transport choices, not evidence that cancellation succeeded remotely.
 
-#### Proposed wake rules for API review
+#### Accepted wake rules
 
 The latest question is how a stopped run differs from a sleeping run. Keep the
 distinction explicit: sleeping is a waiting active run; cancellation is terminal
-for that run. The thread remains open. Recommended behaviour, not yet approved:
+for that run. The thread remains open. The following behaviour is now accepted:
 
 | Incoming event | Behaviour |
 | --- | --- |
@@ -221,3 +227,7 @@ commit independently when their writes form one atomic action.
 Server, cron, database-access and testing libraries, folder structure and query
 indexes remain choices for the implementation pass. No framework is selected by
 these notes and no claim is made that the data-access layer already exists.
+
+The consolidated [resource and API overview](api-overview.md) uses the selected
+`request_id` plus `payload` convention. Stable request IDs replace a separate
+client idempotency-key field; retry semantics and scope are proposed there.

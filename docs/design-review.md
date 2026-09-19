@@ -6,6 +6,7 @@ This is the review checklist for the current design. It consolidates the
 The subsequent A/B review is captured in [Checkout lifecycle](checkout-lifecycle.md).
 The final [runtime review](runtime-review.md) consolidates the subsequent
 permissions, execution, recovery and scheduling walkthrough.
+The [resource and API overview](api-overview.md) is the next review surface.
 This checklist adds no tables or indexes; answered parts are noted below.
 
 Unchecked items are questions, not instructions to build more features. Answer
@@ -264,8 +265,8 @@ enough. Queueing alone is not a safe-retry guarantee.
   reset live workers' claims. Tool jobs must run while the agent is suspended.
 - [ ] **G4 — Retry and cancellation.** Notification idempotency keys are selected.
   Define other stable operation IDs, attempt limits, unknown-outcome reconciliation
-  and cancellation scope. Review the proposed wake-event table in
-  [runtime review](runtime-review.md#proposed-wake-rules-for-api-review).
+  and cancellation scope. Use the accepted wake-event table in
+  [runtime review](runtime-review.md#accepted-wake-rules).
   Real network publication and database acknowledgement are separate boundaries.
   Backoff does not prevent
   repeated side effects. Closing a connection is not proof of remote cancellation.

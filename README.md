@@ -5,6 +5,9 @@ The project is currently in data modelling and agent-runtime design.
 
 ## Start here
 
+- [Resource and API overview](docs/api-overview.md): the current model and proposed
+  operations, consolidated for route and payload review.
+
 - [Remaining design decisions](docs/design-review.md): the central review checklist,
   organised into small sections, with settled and deferred scope kept separate.
 - [Checkout and room-change diagrams](docs/checkout-lifecycle.md): the current
