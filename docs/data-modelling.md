@@ -165,6 +165,15 @@ Proposed details:
 - Optional preferred name.
 - Age, because some activities may have age restrictions.
 - Dietary requirements, as freeform text.
+- Optional phone number and email address.
+- Optional contact preference: `phone`, `email`, or null.
+
+Contact preference null means use all supplied channels: both if both exist,
+one if only one exists. With neither supplied there is no direct contact route;
+the staff-facing fallback remains to be decided. A preference for phone requires
+a phone number; email requires an email address. These are cross-field validation
+rules, not guarantees provided by an enum alone. Delivery is simulated initially.
+Whether a phone notification means SMS or a call is not yet selected.
 
 Dietary requirements stay on the individual guest. General accommodations move
 to party details below. We are not creating a dietary taxonomy now.
@@ -351,8 +360,24 @@ highest revision as current, without a mutable pointer. This is a provisional
 representation recorded in the schema guide, not a timestamp tie-break rule.
 
 An agreed reservation must retain its agreed price when the shared price changes.
-The SQL draft references the exact price ID and revision. When a draft locks
-its quote, and what happens if prices change before confirmation, are open.
+The SQL draft references the exact price ID and revision. Lock the quote when
+staff click Confirm/proceed to checkout. In the proposed flow this is the
+transition from editing to a held checkout, before payment; exact UI labels
+need not define separate states.
+
+The initial room subtotal is the sum, across selected room reservations, of
+agreed nightly rate multiplied by that reservation's number of nights. Each
+room reservation already has its own `check_in_at` and `check_out_at` in SQL;
+a booking does not need one shared period for all rooms. Recommended night
+counting is the difference between hotel-local arrival and departure dates,
+not elapsed UTC hours divided by 24. This calculation convention remains a
+recommendation for the implementation pass. Other checkout items remain
+separate from the room subtotal.
+
+Stay extensions are still open: a separate booking was suggested, then a change
+to the individual room reservation. The latter fits the existing relationship;
+new availability, price and payment must be resolved without invalidating the
+original reservation. No extension workflow is selected yet.
 
 Price sharing across hotels was raised; hotel ownership and permissions for a
 shared price remain open. Money representation is also open. Effective date
@@ -420,15 +445,16 @@ they can be multipurpose. Minimum and maximum booking sizes belong to the
 activity, not the venue.
 
 Activities are manually curated. A scheduled activity has an ID, title, type,
-venue, start time, end time, description, and its own capacity. For example,
-a venue might hold 2,000 people while a rooftop event is limited to 600. The activity capacity
-must fit within the venue capacity. Whether activities can share a venue at the
-same time and how their combined capacity is handled remain open.
+venue, start time, end time, description, and its own capacity. Multiple scheduled
+activities may share a venue at the same time. Venue subdivision is out of scope.
 
 Activity capacity may be null, meaning no activity-level attendance limit.
-How this interacts with a finite venue capacity remains open; null must not
-accidentally bypass an intended venue limit. Add minimum age. Maximum age is
-not required in the current direction.
+The latest decision makes venue capacity a back-office configuration concern:
+Moseby will not impose a combined venue limit or cap an unlimited activity by
+venue capacity. This supersedes the earlier proposed venue-capacity check.
+The runtime and agent enforce the scheduled activity's configured capacity;
+no agent venue-capacity reconciliation is required. Add minimum age. Maximum
+age is not required in the current direction.
 
 The first activities remain tennis, pottery, and guided tours. The current
 direction is to make each dated activity bookable, such as pottery on Thursday
@@ -439,36 +465,46 @@ the same thing as minimum booking size. Extra group-size rules, steps, and
 allowed-number lists are out of scope. A minimum total attendance requirement
 for an activity to run has not been requested.
 
-Activity reservations are separate from activities. The latest preference is
-to associate them with a party rather than directly with a booking. Proposed
-details are:
+One logical activity reservation represents one guest. It references the party
+rather than the booking directly; the party leads to the booking for attribution
+of charges. Several individual reservations can be made as one group request,
+including attendees from different parties. This does not implement room charging
+or a payment ledger. Proposed details are:
 
 - Reservation ID.
 - Party ID.
-- Guest ID under the earlier per-guest design; see the open choice below.
-- Activity and slot reference.
+- Guest ID.
+- Scheduled activity reference.
 - Status: active or cancelled.
 - Cancellation reason, required when cancelled.
 
-Open choice: retain one logical reservation per guest and aggregate by party,
-or make one party reservation for a quantity of places. Replacing booking ID
-with party ID does not itself require changing the unit of a reservation. The
-quantity-only design would need an answer for individual itineraries, age
-checks, and partial cancellations. No choice has been made yet.
+The expected rule is that a reservation's guest belongs to its referenced party;
+a shared social group does not change that membership. Charging someone else's
+party would require a separate explicit rule. Walk-ins without a stay booking
+were raised, but their guest/party/billing representation is not selected.
 
-If individual guests remain identified on reservations, their planned itinerary
-can be derived from those reservations and the scheduled activities. Expose
-that query through the repository layer. A quantity alone gives a party-level
-itinerary. Neither records proof of attendance.
+Derive individual itineraries by joining effective reservations for a guest to
+scheduled activities and filtering by a requested time window. Do not create an
+itinerary resource. Notes belong in the existing party details with referenced
+guests. Exact time-window boundaries can be defined in the query pass.
+
+Guests may reserve overlapping activities, including contingency plans. The
+agent can point out conflicts; the service must not reject them solely because
+they overlap. Each effective reservation still consumes its activity's capacity.
+
+Minimum/maximum booking sizes apply to a group request rather than each stored
+row. How a group request is submitted and committed together remains open; do
+not add a persistent group resource merely to store one reservation per guest.
 
 Activity tariffs should follow the shared price resource and price-version
 model used for rooms. The pricing unit, placement of the price reference, and
 retention of the agreed version still need defining. Discounts can wait.
 
-Keep an append-only activity-reservation history, including cancellations and
-possible reactivations. Whether rows are full revisions or individual events
-remains open. Attendance tracking is outside scope; active does not mean that
-the guest actually turned up.
+Keep an append-only activity-reservation history. Cancellation is terminal for
+an individual reservation. Rebooking creates a new reservation ID and must pass
+current capacity checks. The SQL draft uses full revisions, but does not yet
+enforce terminal activity cancellation. Attendance tracking is outside scope;
+active does not mean that the guest actually turned up.
 
 The latest cancellation direction is to retain activity history and include
 parent-booking validity when deciding whether a reservation is effective. This
@@ -476,17 +512,15 @@ avoids inserting a cancellation revision into every activity reservation just
 because the parent booking was cancelled. All availability and operational
 queries must use the same rule. Which booking states qualify is still open.
 
-The parent booking cannot be restored after cancellation. If individual activity
-reactivation is supported under a valid booking, it must not silently reclaim
-capacity that has since been reserved elsewhere. Historical reports also need
-the booking state at the time being reported, rather than applying today's
-status to all past activity.
+Neither a cancelled parent booking nor a cancelled individual activity reservation
+can be restored. Historical reports still need the booking state at the time
+being reported, rather than applying today's status to all past activity.
 
 The preference is to handle activity availability and capacity checks in the
 application layer. Append-only history does not remove conflicting writes or
 the need to check and commit safely together. SQLite still permits only one
 writer at a time; see its [transaction documentation](https://www.sqlite.org/lang_transaction.html).
-Reactivating a reservation needs the same capacity checks as a new reservation.
+Rebooking requires a new reservation and a fresh capacity check.
 
 Require a reason on an explicit cancellation record. We still need to settle
 whether active records must have no reason. Where a parent cancellation makes
@@ -509,12 +543,21 @@ choosing one. No calendar library has been selected.
 
 ### Activity change notifications
 
-When a scheduled activity changes, notify the affected guests/parties. Record
-email delivery and an agent-accessible notification operation as work to build.
-No email tool or provider has been selected or implemented. Recipient contact
-details, party contact versus individual recipients, delivery results, and
-retry rules remain open. Cancelling through a parent-booking predicate does
-not itself send messages or cancel work in external systems.
+Scheduled activity times may change after reservations exist. Notify affected
+guests with effective reservations, using each guest's supplied contacts and
+preference. Derive their itineraries as needed to explain new time conflicts;
+conflicts are advisory and do not automatically cancel other reservations.
+Individual reservation cancellation is supported. Rules for cancelling an entire
+scheduled activity, changing its venue or age limit, or reducing capacity still
+need review.
+
+Delivery is simulated initially. Record dispatch attempts as external work so
+staff can distinguish simulated notification from actual delivery. No provider
+is selected and no messages are sent. Delivery states, retries, repeated-change
+handling and what old/new activity values are retained remain implementation
+questions. Urgency, escalation and channel sequencing are out of scope.
+Cancelling through a parent-booking predicate does not itself send messages
+or cancel work in external systems.
 
 ## Room services and work done elsewhere
 

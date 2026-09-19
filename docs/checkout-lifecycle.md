@@ -19,7 +19,8 @@ states. The checkout name replaces “draft booking” in this discussion.
   or modification of the current hold.
 - Preserve the agreed price rather than looking up current prices at payment
   time. Keep item amounts, applicable adjustments, currency and the agreed total.
-  The exact quote-lock point is proposed below, not yet settled.
+  The subsequent review selects Confirm/proceed to checkout as the quote-lock
+  action, before payment. The flow maps that action to acquiring the hold.
 - A booking is created only after payment is confirmed. Staff approval is also
   requested; the working interpretation is that both are required. Approval
   does not stand in for payment. The ordering below is a proposal for review.
@@ -43,8 +44,9 @@ states. The checkout name replaces “draft booking” in this discussion.
 ## 1. Checkout to a confirmed booking
 
 **Proposed ordering:** staff approves the held, fixed quote before payment.
-Taking the hold is the proposed quote-lock point. The requirement is to honour
-an agreed quote; exactly when it becomes agreed still needs confirmation.
+The subsequent review fixes the quote on Confirm/proceed to checkout, before
+payment. This flow maps that action to taking the hold; the agreed quote is
+retained even if catalogue prices later change.
 
 ```mermaid
 flowchart TD

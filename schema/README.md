@@ -20,6 +20,14 @@ availability derived from reservations and holds. These are not yet reflected
 in the SQL. Deriving maximum occupancy from beds still requires deciding that
 the demo has no independent room occupancy limit. Housekeeping is out of scope.
 
+The activity/contact review now selects one reservation per guest, terminal
+individual cancellation, derived itineraries, allowed guest/venue overlaps,
+and activity-only capacity enforcement. Guest phone/email/preference fields and
+simulated notification work are specified in the notes but absent from SQL;
+terminal activity cancellation is not yet enforced. Room reservations already
+have separate `check_in_at` and `check_out_at` per room; no restructure is needed
+for different room dates within a booking. Stay-extension behaviour remains open.
+
 No performance indexes are included. Primary keys and the one-to-one party link
 are structural constraints; SQLite may create internal indexes for them. Staff
 code uniqueness, hotel-scoped room labels, and other business uniqueness rules
@@ -85,8 +93,8 @@ This view is not a complete capacity calculation. The meaning of other parent
 statuses, historical reporting, and concurrent reservation changes still need
 policy. No physical delete cascade represents a business cancellation.
 
-Individual activity reactivation has not been made terminal by the booking
-rule. If supported, it requires a fresh capacity check.
+Individual activity cancellation is now terminal by design. Its SQL enforcement
+is pending; a new reservation with a new ID is required to book again.
 
 ## Provisional representation choices
 
@@ -111,13 +119,13 @@ These make the draft concrete without claiming the author has settled them:
   Python must validate element types, duplicates, and membership in the party.
   `NULL` means no accepted classification yet; `[]` means no referenced guests.
   Failure versus ambiguity versus waiting still needs API design.
-- Keep the earlier one-guest-per-activity-reservation structure while changing
-  its parent reference to party. A party quantity-only reservation remains an
-  alternative. Individual guest/party consistency needs validation.
+- One guest per activity reservation is now selected, with a party reference.
+  Individual guest/party consistency still needs validation.
 - `deactivated_at` records key revocation without an active/inactive column.
   Retention of disabled keys is not decided. No door-lock integration exists.
-- A null activity capacity means no activity-level limit. How this interacts
-  with finite venue capacity remains open. Maximum booking size may also be null.
+- A null activity capacity means no activity-level limit. Venue capacity is now
+  an admin configuration concern, with no runtime venue cap. Maximum booking
+  size may also be null.
 - Zero is a possible price in SQL, but zero-total checkout confirmation still
   needs policy. The latest requirement is payment confirmation before a booking
   exists. The schema does not yet model or enforce that requirement.

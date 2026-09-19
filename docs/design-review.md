@@ -129,34 +129,31 @@ cancellation without losing the original agreement or leaving unintended access.
 
 ## C. Activities and changes to the schedule
 
-**Current gap:** the draft retains one reservation per guest. The alternative
-party reservation with a quantity is still open.
+**Progress:** one activity reservation per guest is now selected. Itineraries are
+queries, guest overlaps are allowed, shared venues are allowed, and individual
+activity cancellation is terminal.
 
-- [ ] **C1 — What is one activity reservation?** Per guest, or a party quantity?
-  Keep the party association either way. Decide how attendee identification,
-  individual itineraries, age checks and partial cancellations work. Minimum
-  booking size applies to one request/group, not necessarily to each stored row;
-  explain a four-person request when records are per guest. No extra group-size
-  steps or minimum total attendance rule is needed.
-- [ ] **C2 — How is venue capacity used?** Decide whether activities may overlap
-  at one venue, and how they share space. An unlimited activity currently has
-  a mandatory venue with finite capacity: resolve whether it is still limited
-  by that venue or represents a different kind of setting. Decide whether a
-  guest can book overlapping activities and whether age is evaluated at booking
-  or attendance using the guest age we store.
-- [ ] **C3 — What edits are permitted after reservations exist?** Consider time,
-  venue, cancellation, age limits and a reduced capacity. Decide whether existing
-  bookings remain valid, require staff review, or need alternatives. Identify
-  which changes are recorded and which trigger notification; activity fields
-  are mutable today and there is no activity-change history. Decide what the
-  notification needs to retain about the old and new values.
-- [ ] **C4 — Can an activity reservation be reinstated?** Terminal cancellation
-  is decided for the parent booking only. Either make activity cancellation
-  terminal too, or require a fresh capacity check to reactivate it. Define the
-  parent statuses that count for future activity access. Today's view excludes
-  cancelled bookings but still includes `error` and `completed`; that is not
-  an approved complete eligibility rule. Historical reporting must not apply
-  today's parent status retrospectively to every past activity.
+- [ ] **C1 — Group requests and guests without stays.** Answered: each reservation
+  has a guest and party; party leads to booking for charge attribution. Derive
+  itineraries from reservations; store notes in party details. Still open: how
+  one group request satisfies booking-size limits and is committed together;
+  whether walk-ins without stay bookings are supported. Different parties can
+  participate in the same activity without merging their bookings.
+- [ ] **C2 — Eligibility.** Answered: guest activity overlaps and simultaneous
+  activities at a venue are allowed. Venue capacity is admin configuration;
+  the system enforces activity capacity only, with null meaning unlimited.
+  No combined venue-capacity check or segmentation is required. Still open:
+  whether age eligibility uses booking time or attendance time.
+- [ ] **C3 — Changes after reservations exist.** Answered: activity time changes
+  are allowed; notify affected guests and derive itinerary conflicts as needed.
+  Still open: whole-activity cancellation, venue/age changes, reduced capacity,
+  and retaining old/new values for notification. Delivery is initially simulated;
+  see E1. Guest conflicts remain advisory.
+- [ ] **C4 — Terminal cancellation and parent eligibility.** Answered: individual
+  activity cancellation is terminal; rebooking needs a new ID and available
+  capacity. SQL enforcement is still pending. Still open: parent states that
+  qualify for activity access, especially completed bookings. Historical reports
+  must use historical parent state, not apply today's state retrospectively.
 
 **Done when:** we can book several attendees, cancel one, and reschedule their
 activity with a clear result for capacity and communication.
@@ -166,12 +163,12 @@ activity with a clear result for capacity and communication.
 **Current gap:** rate versions are modelled, but a rate is not a full quote or
 proof of payment.
 
-- [ ] **D1 — When is the quote fixed?** At drafting, holding, or confirmation?
-  Answered: an agreed quote must survive later rate changes, including any
-  agreed adjustments. Still open: the exact lock point, validity window and
-  amendment pricing. Taking the hold is the proposed lock point. Room reservations pin a rate
-  version, but calculation of nights and an agreed total is not yet defined.
-  Activity pricing needs a unit: per participant, party, or slot.
+- [ ] **D1 — Quote and room subtotal.** Answered: freeze the quote on Confirm /
+  proceeding to checkout, before payment, preserving agreed rate versions and
+  adjustments. Sum each room's nightly rate times its own stay length. Room
+  reservations already have individual arrival/departure times. Still open:
+  exact night-count convention, quote validity, stay-extension procedure, and
+  activity pricing unit. Hotel-local date differences are recommended for nights.
 - [ ] **D2 — Who shares and manages a price?** Decide whether a price belongs to
   one hotel or can be shared across hotels, and who may change it. Review the
   current-version rule, supported currencies, amount representation and currency
@@ -191,16 +188,16 @@ and what evidence of payment it actually has.
 
 ## E. Contacts, provenance, permissions and party details
 
-**Current gap:** we removed the primary guest link but have not replaced the
-contact concept. Revision timestamps do not identify who took an action.
+**Progress:** contact information belongs to each guest. Revision timestamps
+still do not identify who took an action.
 
-- [ ] **E1 — Who receives a notification?** One party contact, all participating
-  guests, or staff forwarding the message? Decide where contact details live and
-  what happens when none are present. Removing a guest reference from booking
-  does not settle this. Delivery records, a change/recipient identifier to avoid
-  duplicates, retry outcomes, and genuine versus simulated email are outstanding.
-  The agent may invoke a notification tool; the service still needs a reliable
-  rule for changes made directly through the UI.
+- [ ] **E1 — Contact validation and delivery.** Answered: optional phone and email
+  on each guest; preference phone/email/null, with null using all supplied
+  channels. A specific preference requires that channel to exist. Notify each
+  affected participant; initial dispatch is simulated and logged as external
+  work. Still open: staff fallback when no contacts exist, phone channel meaning,
+  delivery states, duplicate prevention and retries. UI edits must trigger the
+  same notification behaviour as agent edits. Urgency/escalation is deferred.
 - [ ] **E2 — How do we attribute actions and restrict access?** Decide how the
   demo identifies the staff member, what concierge can read/write, and the hotel
   boundary. Link actions to their staff/system actor and, where applicable,
