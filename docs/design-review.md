@@ -251,15 +251,23 @@ enough. Queueing alone is not a safe-retry guarantee.
 - [ ] **G1 — Job representation.** Specify job/input/operation identities, states,
   result/failure, timestamps and call/run links. Fast local tools may be
   synchronous. Stage-by-stage workflow machinery is not required.
-- [ ] **G2 — Reliable handover and completion.** Choose atomic call/job creation
-  and completion-to-thread delivery. Separate saved result from model inclusion.
+- [ ] **G2 — Reliable handover and completion.** Accepted: atomic call/job
+  creation and atomic completion plus outbox intent. Appending to thread history
+  and consuming that intent must happen together. Define exact representations
+  and duplicate prevention. Separate saved result from model inclusion.
   Distinguish a pending tool result from a later update after job acknowledgement.
   Handle duplicates, late results and requests for additional input.
-- [ ] **G3 — Claims.** Define heartbeat/lease durations and atomic claims. Recover
+- [ ] **G3 — Claims.** Accepted: a separate claims table and rejection of obsolete
+  tokens in the protected transaction. Define heartbeat/lease durations and
+  the single-current-owner constraint. Recover
   expired ownership; reject stale-token writes. Restarting one process must not
   reset live workers' claims. Tool jobs must run while the agent is suspended.
-- [ ] **G4 — Retry and cancellation.** Define stable operation IDs, attempt limits,
-  unknown-outcome reconciliation and cancellation scope. Backoff does not prevent
+- [ ] **G4 — Retry and cancellation.** Notification idempotency keys are selected.
+  Define other stable operation IDs, attempt limits, unknown-outcome reconciliation
+  and cancellation scope. Review the proposed wake-event table in
+  [runtime review](runtime-review.md#proposed-wake-rules-for-api-review).
+  Real network publication and database acknowledgement are separate boundaries.
+  Backoff does not prevent
   repeated side effects. Closing a connection is not proof of remote cancellation.
   Preserve relevant late outcomes without automatically restarting a cancelled run.
 
