@@ -9,17 +9,19 @@ from .domain_api import router as domain_router
 from .guests import Guest, UpdateGuestRequest
 from .rooms import Room, SearchRoomsRequest
 from .route_metadata import access, query_body
+from .runtime_api import router as runtime_router
 
 app = FastAPI(
     title="Moseby contract draft",
     version="0.1.0",
     docs_url=None,
     redoc_url=None,
-    description="Domain contract review. Permission annotations are proposals, not enforcement. Operations return 501.",
+    description="Domain and runtime contract review. Permission annotations are proposals, not enforcement. Operations return 501.",
     responses={501: {"description": "Contract draft; operation is not implemented."}},
 )
 app.openapi_version = "3.2.1"
 app.include_router(domain_router)
+app.include_router(runtime_router)
 
 
 @app.api_route(

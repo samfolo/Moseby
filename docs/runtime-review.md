@@ -170,7 +170,7 @@ batch. Acknowledgement follows the database commit; a lost acknowledgement can
 be retried with the same request ID.
 
 Staff may cancel pending polite or assertive messages through the API. This
-operation is for the UI, outside the agent's tool set. Cancellation records the
+operation requires a direct user action through any interface. Cancellation records the
 staff member and time, retains the message, and is terminal. Appending and
 cancelling compete in a transaction: only one can succeed. Once appended, new
 instructions can correct the conversation instead of removing its history.
@@ -190,7 +190,10 @@ matches. The separate occurrences table and gateway access are selected.
 Proposed fields: occurrence ID, schedule ID/revision, intended due time, acceptance
 time, input snapshot, job link and outcome. Choose one unique occurrence identity
 and create it with the initial work atomically. Repeated ticks cannot make duplicate
-jobs. Schedule edits do not retract accepted occurrences/jobs. Earlier scope allows
+jobs. Schedule edits and disabling do not retract accepted occurrences/jobs;
+stopping a waiting run does not cancel independent scheduled work. Accepted jobs
+retain their original destination thread and remain subject to current authority.
+Earlier scope allows
 skipping missed ticks during downtime while recovering already accepted work.
 
 Use an existing recurrence representation and parser. Classic cron timing fields

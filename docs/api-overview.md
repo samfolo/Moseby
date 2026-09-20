@@ -140,9 +140,9 @@ history is not yet settled. Walk-ins without stay bookings remain unmodelled.
 | Resource | Selected shape | Gateway direction |
 | --- | --- | --- |
 | Thread | Stable ID, creator, immutable permission snapshot, title, current-state projection | `/threads` list/get/POST create; no cross-thread search initially |
-| Thread mailbox / inbox | Durable input, thread, source, queue/steer mode, target run if any, order/handling state | Accept input through a controlled operation; route/table names open |
-| Run | Thread, initiating inputs, state/wait, cancellation intent/outcome, times | Read and semantic cancellation; no arbitrary status PATCH |
-| Thread record | Thread, sequence, kind, persisted format version, typed payload, run/call/job links | Top-level `/thread-records`; access always checks its thread; QUERY by thread/cursor proposed |
+| Incoming thread record | Saved input, delivery mode, target run, arrival sequence, append/cancellation receipt | POST `/incoming-thread-records` with `thread_id` in the payload; GET by ID and QUERY on the same collection; `:steer` and `:cancel` for pending user input |
+| Run | Thread, state/wait, cancellation intent, times | GET `/runs` scoped to a thread; GET by ID; POST `:cancel` returns 202 for the stop request |
+| Thread record | Conversation record ID, thread/sequence, typed content and call links | GET `/thread-records/{id}`; QUERY `/thread-records` for one thread; internal record kinds stay out of this conversation view |
 
 Creator-only thread access is selected. Frozen thread capabilities do not preserve
 revoked grants: reads and executions also need current authority. New privileges
@@ -161,9 +161,9 @@ history. Classifier records are excluded from the main-model message projection.
 | Job | Overall operation, actor/request/call/run links, workflow type/state, result/error, times | `/jobs` list/get/create; creation limited to registered operations; no search |
 | Task | One independently claimable/retryable unit, job link, handler/input, status/result, attempt counter/timing | Separate internal resource/table for learning fan-out; public task API not yet selected |
 | Worker claim | Task ID, owner, unique token, heartbeat, expiry | Separate internal table; no public CRUD |
-| Schedule | Timing expression, action/input, destination, author, enabled/version information | `/schedules` create/list/get/PATCH; semantic actions where warranted |
-| Schedule occurrence | Particular due firing, schedule/revision, intended time, accepted time, job/outcome | Separate table and gateway-readable resource selected; proposed `/schedule-occurrences` list/get with parent scoping |
-| Notification/publication | Stable event/request identity, audience, payload, stream position, published time | `/notifications` list/get/create with cursor-based reading; no search; SQLite-backed |
+| Schedule | Timing, registered handler/input, thread, actor, enabled flag and revision | `/schedules` create/list/get/PATCH; edits use an exact field mask and expected revision |
+| Schedule occurrence | Accepted firing, schedule/revision, due and acceptance times, job link | `/schedule-occurrences` list by schedule and get by ID; job supplies outcome |
+| Notification/publication | Recipient, content, publication time and stable event cursor | `/notifications` list/get/create; `/published-events` replays visible publications after a sequence |
 
 Job/task separation is now selected for learning. Workers claim tasks, not both
 job and task concurrently. Initial jobs may have one task; bounded registered job
@@ -186,6 +186,7 @@ The completion outbox holds pending delivery, not request deduplication.
 must make it effective. No public request-receipts resource is needed; physical
 storage is an implementation choice. Booking/reservation revisions stay internal.
 
-All route examples remain design documentation. The SQL is older and has not
-been migrated to this contract. The [checklist](design-review.md) records remaining
-behavioural decisions; no schema or framework is silently selected by this file.
+The executable contract declarations live in `moseby/contracts/runtime_api.py`
+and generate `openapi.yaml`. Operation handlers return 501 until their services
+are implemented. Registered handlers validate their own arguments and required
+permissions; the generic job and schedule envelopes do not replace that check.

@@ -353,12 +353,15 @@ class RuntimeModelTests(unittest.TestCase):
 
     def test_public_requests_require_idempotency_but_responses_omit_it(self):
         request = CreateIncomingThreadRecordRequest.model_validate(
-            {"request_id": "request-1", "payload": {"text": "Hello"}}
+            {
+                "request_id": "request-1",
+                "payload": {"thread_id": identifier("thread"), "text": "Hello"},
+            }
         )
         self.assertEqual(request.request_id, "request-1")
         with self.assertRaises(ValidationError):
             CreateIncomingThreadRecordRequest.model_validate(
-                {"payload": {"text": "Hello"}}
+                {"payload": {"thread_id": identifier("thread"), "text": "Hello"}}
             )
         with self.assertRaises(ValidationError):
             CreateThreadRequest.model_validate(

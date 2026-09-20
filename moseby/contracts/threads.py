@@ -11,6 +11,8 @@ from moseby.identifiers import (
 )
 from moseby.runtime.models.incoming_thread_records import (
     IncomingThreadRecordDeliveryMode,
+    IncomingThreadRecordKind,
+    ScheduledInputPayload,
 )
 from moseby.runtime.models.messages import (
     AssistantMessagePayload,
@@ -19,7 +21,7 @@ from moseby.runtime.models.messages import (
 )
 from moseby.runtime.models.thread_records import ThreadRecordKind
 
-from .common import Contract, Request
+from .common import Contract, IdFilter, Request, SearchRequestPayload
 
 
 class Thread(Contract):
@@ -56,6 +58,7 @@ class CreateThreadRequest(Request[CreateThreadRequestPayload]):
 
 
 class CreateIncomingThreadRecordRequestPayload(Contract):
+    thread_id: ThreadId
     text: str = Field(min_length=1)
     delivery_mode: IncomingThreadRecordDeliveryMode = (
         IncomingThreadRecordDeliveryMode.POLITE
@@ -126,7 +129,66 @@ class CancelIncomingThreadRecordRequestPayload(Contract):
 class CancelIncomingThreadRecordRequest(
     Request[CancelIncomingThreadRecordRequestPayload]
 ):
-    """UI operation for polite or assertive input before acceptance into history."""
+    """Direct user action for pending input before acceptance into history."""
+
+
+class SteerIncomingThreadRecordRequestPayload(Contract):
+    target_run_id: RunId = Field(
+        description="Run observed by the sender when promoting pending input to a steer."
+    )
+
+
+class SteerIncomingThreadRecordRequest(
+    Request[SteerIncomingThreadRecordRequestPayload]
+):
+    pass
+
+
+class IncomingUserMessage(IncomingThreadRecordReceipt):
+    kind: Literal[IncomingThreadRecordKind.USER_MESSAGE]
+    actor_staff_member_id: StaffMemberId
+    delivery_mode: IncomingThreadRecordDeliveryMode
+    target_run_id: RunId | None
+    payload: UserMessagePayload
+
+    @model_validator(mode="after")
+    def check_delivery(self) -> Self:
+        if (self.delivery_mode == IncomingThreadRecordDeliveryMode.ASSERTIVE) != (
+            self.target_run_id is not None
+        ):
+            raise ValueError(
+                "assertive input requires a target run; polite input has none"
+            )
+        return self
+
+
+class IncomingScheduledInput(IncomingThreadRecordReceipt):
+    kind: Literal[IncomingThreadRecordKind.SCHEDULED_INPUT]
+    actor_staff_member_id: StaffMemberId
+    delivery_mode: Literal[IncomingThreadRecordDeliveryMode.POLITE]
+    target_run_id: None
+    cancelled_at: None
+    cancelled_by_staff_member_id: None
+    payload: ScheduledInputPayload
+
+
+type IncomingThreadRecord = Annotated[
+    IncomingUserMessage | IncomingScheduledInput, Field(discriminator="kind")
+]
+
+
+class SearchIncomingThreadRecordsRequestPayload(SearchRequestPayload):
+    thread_id: ThreadId
+    pending_only: bool = Field(
+        default=True,
+        description="Only input that is neither appended nor cancelled; includes steers whose target ended.",
+    )
+
+
+class SearchIncomingThreadRecordsRequest(
+    Request[SearchIncomingThreadRecordsRequestPayload]
+):
+    pass
 
 
 class ConversationRecordBase(Contract):
@@ -161,3 +223,13 @@ type ConversationRecord = Annotated[
     UserConversationRecord | AssistantConversationRecord | ToolResultConversationRecord,
     Field(discriminator="kind"),
 ]
+
+
+class SearchThreadRecordsRequestPayload(SearchRequestPayload):
+    thread_id: ThreadId
+    ids: IdFilter[ThreadRecordId] | None = None
+    run_ids: IdFilter[RunId] | None = None
+
+
+class SearchThreadRecordsRequest(Request[SearchThreadRecordsRequestPayload]):
+    pass

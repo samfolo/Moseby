@@ -15,7 +15,7 @@ type IdFilter[T] = Annotated[
 
 
 class Contract(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="forbid", allow_inf_nan=False)
 
 
 class Request[T](Contract):

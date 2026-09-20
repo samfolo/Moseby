@@ -10,6 +10,7 @@ from moseby.identifiers import (
     ThreadId,
     ThreadRecordId,
 )
+from moseby.permissions import Permission
 
 from .common import ErrorDetails, JsonObject, RuntimeModel, ToolCallId
 from .messages import (
@@ -32,17 +33,15 @@ class ThreadRecordKind(StrEnum):
 
 class ThreadCreatedPayload(RuntimeModel):
     creator_staff_member_id: StaffMemberId
-    permissions: list[str] = Field(
+    permissions: list[Permission] = Field(
         description="Permission codes captured at thread creation."
     )
     title: str | None = None
 
     @model_validator(mode="after")
     def check_permissions(self) -> Self:
-        if any(not code for code in self.permissions) or len(
-            set(self.permissions)
-        ) != len(self.permissions):
-            raise ValueError("permissions must contain unique, non-empty codes")
+        if len(set(self.permissions)) != len(self.permissions):
+            raise ValueError("permissions must contain unique codes")
         return self
 
 

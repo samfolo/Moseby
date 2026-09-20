@@ -52,6 +52,10 @@ Inspect SQL without creating a database:
 
 ## Current contracts
 
+- [Runtime routes](moseby/contracts/runtime_api.py) cover threads, incoming input,
+  runs, jobs, schedules, occurrences and notifications. They generate the runtime
+  sections of [OpenAPI](openapi.yaml); handlers return 501 until services are wired.
+  Run their contract checks with `make test-contracts`.
 - [Runtime message models](moseby/runtime/models/thread_records.py) validate the
   stored record kinds and payloads. [Thread contracts](moseby/contracts/threads.py)
   and [run contracts](moseby/contracts/runs.py) define gateway representations.

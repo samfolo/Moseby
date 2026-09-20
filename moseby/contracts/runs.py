@@ -5,7 +5,7 @@ from pydantic import AwareDatetime, Field, model_validator
 
 from moseby.identifiers import RunId, StaffMemberId, ThreadId
 
-from .common import Contract
+from .common import Contract, PageRequest, Request
 
 
 class RunStatus(StrEnum):
@@ -59,3 +59,15 @@ class Run(Contract):
             if value is not None and not self.created_at <= value <= self.updated_at:
                 raise ValueError(f"{name} must be between created_at and updated_at")
         return self
+
+
+class CancelRunRequestPayload(Contract):
+    """Request a stop; the service records the time and authenticated staff member."""
+
+
+class CancelRunRequest(Request[CancelRunRequestPayload]):
+    pass
+
+
+class ListRunsRequest(PageRequest):
+    thread_id: ThreadId
