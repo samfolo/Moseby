@@ -523,7 +523,13 @@ The latest cancellation direction is to retain activity history and include
 parent-booking validity when deciding whether a reservation is effective. This
 avoids inserting a cancellation revision into every activity reservation just
 because the parent booking was cancelled. All availability and operational
-queries must use the same rule. Which booking states qualify is still open.
+queries must use the same rule. Confirmed and completed bookings preserve
+uncancelled activity reservations; cancelled bookings release their places.
+Passing the activity's end time does not change effectiveness.
+
+An activity must fit within the guest's stay when it is reserved. Changes to
+activity times or stay dates must check this again. This is a service admission
+rule; the read repositories do not yet enforce stay coverage.
 
 Neither a cancelled parent booking nor a cancelled individual activity reservation
 can be restored. Historical reports still need the booking state at the time

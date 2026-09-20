@@ -65,8 +65,10 @@ Field descriptions and enum docstrings appear in the generated OpenAPI.
 
 ## Concrete proposals needing review
 
-1. **Remaining lifecycle rules.** What marks a booking completed and which parent
-   states permit activity reservations remain open. Historical queries must use
+1. **Remaining lifecycle rules.** What marks a booking completed remains open.
+   Confirmed and completed bookings preserve uncancelled activity reservations;
+   cancelled bookings release them. New reservations and date changes must keep
+   activities within the guest's stay. Historical queries must use
    historical eligibility. Terminal cancellation still requires transaction/history
    checks; these read models cannot enforce transitions by themselves.
 2. **Group reservation creation.** The activity price and booking-size models

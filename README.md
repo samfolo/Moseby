@@ -54,9 +54,10 @@ Inspect SQL without creating a database:
 
 [Repositories](moseby/db/repositories) are resource modules with connection-first
 functions. Python modules provide the namespace; a class of static methods would
-add no state or behaviour here. Bookings, parties, guests, room reservations and
-room keys have separate modules. Each query requires a hotel scope supplied by
-the service. Repositories use that scope but do not authenticate the caller.
+add no state or behaviour here. Bookings, parties, guests, room reservations,
+room keys, activities and activity reservations have separate modules. Stay-related
+queries require a hotel scope supplied by the service; activities are a shared
+catalogue. Repositories apply scope but do not authenticate the caller.
 
 ```python
 from moseby.db.pagination import PageRequest
@@ -88,8 +89,15 @@ converts them for the API. Reservation reads include their exact agreed price
 version. Key reads take `now` in UTC microseconds and derive access from the
 current booking, reservation dates and revocation state.
 
+Activity searches accept ID, venue, type, overlapping-date and available-place
+filters. Reservation searches produce flat guest/party itineraries and default to
+effective reservations. Their agreed prices stay fixed while catalogue prices can
+change. Capacity counts include all hotels, including results beyond the current
+page; individual reservation reads remain hotel-scoped.
+
 `make test-db` exercises the reads against freshly migrated, seeded databases,
-including cross-hotel lookups, cursor boundaries and more than 100 keys per stay.
+including cross-hotel lookups, cursor boundaries, cancellation and more than 100
+keys or activity reservations.
 
 ## Current contracts
 
