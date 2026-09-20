@@ -1,7 +1,8 @@
 from pydantic import AwareDatetime
 
+from moseby.identifiers import BookingId, PartyId
+
 from .common import Contract, IdFilter, Request, SearchRequestPayload
-from .identifiers import BookingId, PartyId
 
 
 class Party(Contract):

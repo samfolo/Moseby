@@ -27,8 +27,8 @@ For another environment, pass `PYTHON=/path/to/python` to either command.
 Hand-authored [Alembic migrations](moseby/db/migrations/versions) define the SQLite
 schema. The first migration covers domain tables and immutable revision history.
 The second covers threads, records, queued work, schedules and notification
-publication. Runtime payload models, repositories, workers and checkout storage
-remain to be implemented.
+publication. The third adds cancellation of pending user input.
+Repositories, workers and checkout storage remain to be implemented.
 Performance indexes are deferred until we review the queries; primary-key and
 uniqueness indexes enforce data rules already, including one active run per thread.
 `schema/draft.sql` is historical and is not used to initialize the database.
@@ -52,6 +52,10 @@ Inspect SQL without creating a database:
 
 ## Current contracts
 
+- [Runtime message models](moseby/runtime/models/thread_records.py) validate the
+  stored record kinds and payloads. [Thread contracts](moseby/contracts/threads.py)
+  and [run contracts](moseby/contracts/runs.py) define gateway representations.
+  Run their validation tests with `make test-models`.
 - [Next domain models](docs/domain-contract-review.md): review the hotel, staff,
   booking, party, key and activity models after the approved foundation.
 - [Python contract draft](docs/python-contract.md): first Pydantic models,

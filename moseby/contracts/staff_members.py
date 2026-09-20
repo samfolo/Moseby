@@ -2,8 +2,9 @@ from enum import StrEnum
 
 from pydantic import AwareDatetime, Field
 
+from moseby.identifiers import HotelId, StaffMemberId
+
 from .common import Contract
-from .identifiers import HotelId, StaffMemberId
 
 
 class StaffRole(StrEnum):

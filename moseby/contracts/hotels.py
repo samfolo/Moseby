@@ -1,8 +1,9 @@
 from pydantic import AwareDatetime, Field
 
+from moseby.identifiers import HotelId
+
 from .addresses import Address
 from .common import Contract
-from .identifiers import HotelId
 
 
 class Hotel(Contract):

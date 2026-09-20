@@ -116,11 +116,13 @@ def _create_threads_and_runs() -> None:
             sa.ForeignKey("staff_members.id", name="fk_thread_creator"),
             nullable=False,
         ),
+        # Creation-time permissions cap what this thread may do under current authority.
         *_json("permissions_json", shape="array"),
         sa.Column("title", sa.Text()),
         sa.Column("archived_at", sa.Integer()),
-        # These fields are updated alongside the records they summarize.
+        # Last history position included in the saved summary.
         sa.Column("projection_sequence", sa.Integer(), nullable=False),
+        # Decoder version and cached summary rebuilt from thread records.
         sa.Column("projection_format_version", sa.Integer(), nullable=False),
         *_json("projection_json"),
         sa.CheckConstraint(
@@ -146,13 +148,16 @@ def _create_threads_and_runs() -> None:
             nullable=False,
         ),
         sa.Column("status", sa.Text(), nullable=False),
+        # Earliest timed continuation; eligible steering may resume the run sooner.
         sa.Column("wake_at", sa.Integer()),
+        # A stop request remains distinct from the eventual CANCELLED status.
         sa.Column("cancel_requested_at", sa.Integer()),
         sa.Column(
             "cancel_requested_by_staff_member_id",
             sa.Text(),
             sa.ForeignKey("staff_members.id", name="fk_run_cancel_actor"),
         ),
+        # Attempts to recover interrupted execution, separate from task retries.
         sa.Column("recovery_attempts", sa.Integer(), nullable=False),
         sa.Column("finished_at", sa.Integer()),
         sa.UniqueConstraint("id", "thread_id", name="uq_run_thread"),
@@ -257,6 +262,7 @@ def _create_incoming_and_inference() -> None:
         sa.Column("kind", sa.Text(), nullable=False),
         # Assertive input joins the active run at a safe point between execution steps.
         sa.Column("delivery_mode", sa.Text(), nullable=False),
+        # Preserve which execution the sender meant, even after it finishes.
         sa.Column("target_run_id", sa.Text()),
         sa.Column(
             "actor_staff_member_id",
@@ -548,7 +554,9 @@ def _create_requests_and_work() -> None:
         sa.Column("format_version", sa.Integer(), nullable=False),
         *_json("input_json"),
         sa.Column("status", sa.Text(), nullable=False),
+        # Execution attempts across retries of this same logical task.
         sa.Column("attempt_count", sa.Integer(), nullable=False),
+        # Workers must wait until this time before claiming ready work.
         sa.Column("available_at", sa.Integer(), nullable=False),
         sa.Column("started_at", sa.Integer()),
         sa.Column("finished_at", sa.Integer()),
@@ -587,9 +595,11 @@ def _create_requests_and_work() -> None:
             sa.ForeignKey("tasks.id", name="fk_claim_task"),
             nullable=False,
         ),
+        # Replacement claims use a new token to exclude writes from stale workers.
         sa.Column("token", sa.Text(), nullable=False),
         sa.Column("worker_id", sa.Text(), nullable=False),
         sa.Column("claimed_at", sa.Integer(), nullable=False),
+        # Last accepted renewal and the deadline for this worker's ownership.
         sa.Column("heartbeat_at", sa.Integer(), nullable=False),
         sa.Column("expires_at", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("task_id", name="pk_task_claims"),
@@ -744,6 +754,7 @@ def _create_notifications() -> None:
         ),
         sa.Column("format_version", sa.Integer(), nullable=False),
         *_json("payload_json"),
+        # Publication into the durable event stream, not recipient acknowledgement.
         sa.Column("published_at", sa.Integer()),
         sa.UniqueConstraint(
             "actor_staff_member_id", "request_id", name="uq_notification_request"

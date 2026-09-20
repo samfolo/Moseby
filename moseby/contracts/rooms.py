@@ -3,9 +3,10 @@ from typing import Annotated
 
 from pydantic import Field
 
+from moseby.identifiers import BedId, HotelId, PriceId, RoomId
+
 from .amounts import NonNegativeAmount
 from .common import Contract, IdFilter, Request, SearchRequestPayload
-from .identifiers import BedId, HotelId, PriceId, RoomId
 from .ranges import AmountRange, DateRange, NumberRange
 
 

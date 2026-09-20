@@ -2,8 +2,9 @@ from typing import Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from moseby.identifiers import RoomKeyId, RoomReservationId
+
 from .common import Contract, Request
-from .identifiers import RoomKeyId, RoomReservationId
 
 
 class RoomKey(Contract):

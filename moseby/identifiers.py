@@ -24,3 +24,17 @@ type ActivityId = Annotated[str, Field(pattern=rf"^activity_{ULID_PATTERN}$")]
 type ActivityReservationId = Annotated[
     str, Field(pattern=rf"^activity_reservation_{ULID_PATTERN}$")
 ]
+
+type ThreadId = Annotated[str, Field(pattern=rf"^thread_{ULID_PATTERN}$")]
+type ThreadRecordId = Annotated[str, Field(pattern=rf"^thread_record_{ULID_PATTERN}$")]
+type IncomingThreadRecordId = Annotated[
+    str, Field(pattern=rf"^incoming_thread_record_{ULID_PATTERN}$")
+]
+type RunId = Annotated[str, Field(pattern=rf"^run_{ULID_PATTERN}$")]
+type JobId = Annotated[str, Field(pattern=rf"^job_{ULID_PATTERN}$")]
+type InferenceRequestId = Annotated[
+    str, Field(pattern=rf"^inference_request_{ULID_PATTERN}$")
+]
+type ScheduleOccurrenceId = Annotated[
+    str, Field(pattern=rf"^occurrence_{ULID_PATTERN}$")
+]

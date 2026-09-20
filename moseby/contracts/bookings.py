@@ -3,8 +3,9 @@ from typing import Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from moseby.identifiers import BookingId, HotelId, RoomId, RoomReservationId
+
 from .common import Contract
-from .identifiers import BookingId, HotelId, RoomId, RoomReservationId
 from .ranges import DateRange
 from .rooms import NightlyPrice
 

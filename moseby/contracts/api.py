@@ -2,10 +2,11 @@
 
 from fastapi import FastAPI, HTTPException
 
+from moseby.identifiers import GuestId, RoomId
+
 from .common import Page
 from .domain_api import router as domain_router
 from .guests import Guest, UpdateGuestRequest
-from .identifiers import GuestId, RoomId
 from .rooms import Room, SearchRoomsRequest
 from .route_metadata import access, query_body
 

@@ -161,6 +161,25 @@ run. Cancellation is terminal for that run, not for the thread. Cancelling a
 wait does not prove the remote action stopped. Exact task cancellation scope and
 handling of already-queued user input remain open; do not silently lose input.
 
+### Pending user input
+
+Saved input is pending while both its appended time and cancellation time are
+empty. Polling considers all pending inputs, including steers whose target run
+has ended. The per-thread sequence preserves arrival order within an eligible
+batch. Acknowledgement follows the database commit; a lost acknowledgement can
+be retried with the same request ID.
+
+Staff may cancel pending polite or assertive messages through the API. This
+operation is for the UI, outside the agent's tool set. Cancellation records the
+staff member and time, retains the message, and is terminal. Appending and
+cancelling compete in a transaction: only one can succeed. Once appended, new
+instructions can correct the conversation instead of removing its history.
+
+The target run remains attached to a delayed steer. Context assembly uses that
+link to include the earlier request and relevant outcomes with the new message.
+The ID identifies an execution; it does not identify a particular quoted message
+or explain what an ambiguous phrase such as "cancel that" means.
+
 ## Schedules and occurrence records
 
 A schedule is the recurrence rule/action. A schedule occurrence is one due firing

@@ -123,6 +123,20 @@ class RuntimeMigrationTests(unittest.TestCase):
         )
         self.insert(connection, "thread_records", **(values | changes))
 
+    def incoming(self, connection, number=1, **changes):
+        values = dict(
+            id=identifier("incoming_thread_record", number),
+            created_at=1,
+            thread_id=identifier("thread"),
+            sequence=number,
+            kind="INCOMING_THREAD_RECORD_KIND_USER_MESSAGE",
+            delivery_mode="INCOMING_THREAD_RECORD_DELIVERY_MODE_POLITE",
+            actor_staff_member_id=identifier("staff_member"),
+            format_version=1,
+            payload_json='{"text":"Avoid morning activities"}',
+        )
+        self.insert(connection, "incoming_thread_records", **(values | changes))
+
     def job(self, connection, number=1, **changes):
         self.insert(
             connection,
@@ -442,6 +456,157 @@ class RuntimeMigrationTests(unittest.TestCase):
                     target_run_id=None,
                     updated_at=4,
                 ),
+            )
+
+    def test_pending_input_cancellation_is_terminal_and_retained(self):
+        identity = identifier("incoming_thread_record")
+        cancellation = dict(
+            cancelled_at=2,
+            cancelled_by_staff_member_id=identifier("staff_member"),
+            updated_at=2,
+        )
+        with transaction(self.engine, write=True) as connection:
+            self.incoming(
+                connection,
+                delivery_mode="INCOMING_THREAD_RECORD_DELIVERY_MODE_ASSERTIVE",
+                target_run_id=identifier("run"),
+            )
+            for changes in (
+                {"cancelled_at": None},
+                {"cancelled_by_staff_member_id": None},
+                {"cancelled_by_staff_member_id": identifier("staff_member", 2)},
+                {"cancelled_at": 0},
+                {"updated_at": 1},
+            ):
+                self.invalid(
+                    connection,
+                    lambda changes=changes: self.update(
+                        connection,
+                        "incoming_thread_records",
+                        identity,
+                        **(cancellation | changes),
+                    ),
+                )
+            self.update(connection, "incoming_thread_records", identity, **cancellation)
+            for changes in (
+                {"cancelled_at": None, "cancelled_by_staff_member_id": None},
+                {
+                    "delivery_mode": "INCOMING_THREAD_RECORD_DELIVERY_MODE_POLITE",
+                    "target_run_id": None,
+                },
+                {"updated_at": 3},
+            ):
+                self.invalid(
+                    connection,
+                    lambda changes=changes: self.update(
+                        connection, "incoming_thread_records", identity, **changes
+                    ),
+                )
+            target = self.metadata.tables["incoming_thread_records"]
+            self.invalid(connection, lambda: connection.execute(target.delete()))
+            self.incoming(
+                connection,
+                2,
+                kind="INCOMING_THREAD_RECORD_KIND_SCHEDULED_INPUT",
+            )
+            self.invalid(
+                connection,
+                lambda: self.update(
+                    connection,
+                    "incoming_thread_records",
+                    identifier("incoming_thread_record", 2),
+                    **cancellation,
+                ),
+            )
+
+    def test_cancellation_and_append_cannot_both_win(self):
+        with transaction(self.engine, write=True) as connection:
+            self.incoming(connection)
+            self.incoming(connection, 2)
+            self.record(connection, 3)
+            self.update(
+                connection,
+                "incoming_thread_records",
+                identifier("incoming_thread_record"),
+                record_id=identifier("thread_record", 3),
+                appended_at=2,
+                updated_at=2,
+            )
+            self.invalid(
+                connection,
+                lambda: self.update(
+                    connection,
+                    "incoming_thread_records",
+                    identifier("incoming_thread_record"),
+                    cancelled_at=3,
+                    cancelled_by_staff_member_id=identifier("staff_member"),
+                    updated_at=3,
+                ),
+            )
+            self.update(
+                connection,
+                "incoming_thread_records",
+                identifier("incoming_thread_record", 2),
+                cancelled_at=2,
+                cancelled_by_staff_member_id=identifier("staff_member"),
+                updated_at=2,
+            )
+
+        # Losing the race rolls back the history append as well as its receipt.
+        with (
+            self.assertRaises(IntegrityError),
+            transaction(self.engine, write=True) as connection,
+        ):
+            self.record(connection, 4, sequence=3)
+            self.update(
+                connection,
+                "incoming_thread_records",
+                identifier("incoming_thread_record", 2),
+                record_id=identifier("thread_record", 4),
+                appended_at=3,
+                updated_at=3,
+            )
+        with self.engine.connect() as connection:
+            records = self.metadata.tables["thread_records"]
+            self.assertIsNone(
+                connection.execute(
+                    records.select().where(
+                        records.c.id == identifier("thread_record", 4)
+                    )
+                ).first()
+            )
+
+    def test_input_cancellation_migration_preserves_pending_messages(self):
+        self.migrate("0002_runtime", downgrade=True)
+        with transaction(self.engine, write=True) as connection:
+            self.incoming(connection)
+        self.migrate("head")
+        with self.engine.connect() as connection:
+            target = self.metadata.tables["incoming_thread_records"]
+            saved = connection.execute(target.select()).mappings().one()
+            self.assertIsNone(saved["cancelled_at"])
+            self.assertEqual(
+                saved["payload_json"], '{"text":"Avoid morning activities"}'
+            )
+            self.assertEqual(
+                connection.exec_driver_sql("PRAGMA foreign_key_check").all(), []
+            )
+
+    def test_downgrade_cannot_turn_cancelled_input_back_into_pending_input(self):
+        with transaction(self.engine, write=True) as connection:
+            self.incoming(
+                connection,
+                cancelled_at=1,
+                cancelled_by_staff_member_id=identifier("staff_member"),
+            )
+        with self.assertRaisesRegex(
+            RuntimeError, "would make cancelled messages pending again"
+        ):
+            self.migrate("0002_runtime", downgrade=True)
+        with self.engine.connect() as connection:
+            target = self.metadata.tables["incoming_thread_records"]
+            self.assertEqual(
+                connection.execute(target.select()).mappings().one()["cancelled_at"], 1
             )
 
     def test_creation_and_update_timestamps_are_required_on_mutable_rows(self):

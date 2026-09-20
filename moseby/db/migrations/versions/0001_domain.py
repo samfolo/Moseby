@@ -170,6 +170,7 @@ def _create_property_tables() -> None:
             nullable=False,
         ),
         sa.Column("revision", sa.Integer(), nullable=False),
+        # Integer minor units, such as pence; currency defines their scale.
         sa.Column("amount_minor", sa.Integer(), nullable=False),
         sa.Column("currency", sa.Text(), nullable=False),
         sa.Column("created_at", sa.Integer(), nullable=False),
@@ -189,10 +190,12 @@ def _create_property_tables() -> None:
             sa.ForeignKey("hotels.id", name="fk_rooms_hotels"),
             nullable=False,
         ),
+        # Human-facing room name or number, unique within its hotel.
         sa.Column("label", sa.Text(), nullable=False),
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("tier", sa.Text(), nullable=False),
         sa.Column("number_of_bathrooms", sa.Integer(), nullable=False),
+        # Operational eligibility (0/1); booking availability also depends on dates.
         sa.Column("in_service", sa.Integer(), nullable=False),
         sa.Column(
             "price_id",
@@ -290,6 +293,7 @@ def _create_booking_and_guest_tables() -> None:
         sa.Column("first_name", sa.Text(), nullable=False),
         sa.Column("last_name", sa.Text(), nullable=False),
         sa.Column("preferred_name", sa.Text()),
+        # Age recorded for this visit and used for activity eligibility.
         sa.Column("age", sa.Integer(), nullable=False),
         sa.Column("dietary_requirements", sa.Text()),
         sa.Column("phone", sa.Text()),
@@ -326,6 +330,7 @@ def _create_booking_and_guest_tables() -> None:
             nullable=False,
         ),
         sa.Column("text", sa.Text(), nullable=False),
+        # Classifier-selected guests from this party; the original text is evidence.
         sa.Column("referenced_guest_ids_json", sa.Text(), nullable=False),
         sa.Column("reference_format_version", sa.Integer(), nullable=False),
         sa.Column("reference_status", sa.Text(), nullable=False),
@@ -384,6 +389,7 @@ def _create_room_access_tables() -> None:
         sa.Column("cancelled", sa.Integer(), nullable=False),
         sa.Column("cancellation_reason", sa.Text()),
         sa.Column("price_id", sa.Text(), nullable=False),
+        # Pin the agreed rate even when the catalogue price changes.
         sa.Column("price_revision", sa.Integer(), nullable=False),
         sa.Column("created_at", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint(
@@ -416,6 +422,7 @@ def _create_room_access_tables() -> None:
             nullable=False,
         ),
         sa.Column("code", sa.Text()),
+        # Explicit key revocation; reservation validity is checked separately.
         sa.Column("deactivated_at", sa.Integer()),
         sa.Column("deactivation_reason", sa.Text()),
         sa.CheckConstraint(
@@ -491,6 +498,7 @@ def _create_activity_tables() -> None:
         sa.Column("description", sa.Text(), nullable=False),
         sa.Column("min_date", sa.Integer(), nullable=False),
         sa.Column("max_date", sa.Integer(), nullable=False),
+        # Null means unlimited places; group-size limits apply independently.
         sa.Column("capacity", sa.Integer()),
         sa.Column("min_booking_size", sa.Integer(), nullable=False),
         sa.Column("max_booking_size", sa.Integer(), nullable=False),
@@ -556,6 +564,7 @@ def _create_activity_tables() -> None:
         sa.Column("cancelled", sa.Integer(), nullable=False),
         sa.Column("cancellation_reason", sa.Text()),
         sa.Column("price_id", sa.Text(), nullable=False),
+        # Pin the agreed rate even when the catalogue price changes.
         sa.Column("price_revision", sa.Integer(), nullable=False),
         sa.Column("price_unit", sa.Text(), nullable=False),
         sa.Column("created_at", sa.Integer(), nullable=False),

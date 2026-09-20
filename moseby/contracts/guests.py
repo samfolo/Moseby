@@ -3,8 +3,9 @@ from typing import Annotated, Literal, Self, TypedDict
 
 from pydantic import ConfigDict, Field, model_validator, with_config
 
+from moseby.identifiers import BookingId, GuestId, PartyId
+
 from .common import Contract, IdFilter, Request, SearchRequestPayload
-from .identifiers import BookingId, GuestId, PartyId
 
 
 class ContactPreference(StrEnum):
