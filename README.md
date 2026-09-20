@@ -1,8 +1,8 @@
 # Moseby
 
 A Python experiment in proactive, staff-facing resort operations.
-The project has reviewed gateway contracts and hand-authored database migrations.
-The gateway handlers and repositories are not yet implemented.
+The project has reviewed gateway contracts, hand-authored migrations and the first
+read repositories. Gateway handlers and runtime workers remain to be implemented.
 
 ## Formatting and linting
 
@@ -28,7 +28,7 @@ Hand-authored [Alembic migrations](moseby/db/migrations/versions) define the SQL
 schema. The first migration covers domain tables and immutable revision history.
 The second covers threads, records, queued work, schedules and notification
 publication. The third adds cancellation of pending user input.
-Repositories, workers and checkout storage remain to be implemented.
+Checkout storage and repository mutations remain to be implemented.
 Performance indexes are deferred until we review the queries; primary-key and
 uniqueness indexes enforce data rules already, including one active run per thread.
 `schema/draft.sql` is historical and is not used to initialize the database.
@@ -49,6 +49,47 @@ Inspect SQL without creating a database:
 ```sh
 .venv/bin/python -m alembic upgrade head --sql
 ```
+
+## Repository reads
+
+[Repositories](moseby/db/repositories) are resource modules with connection-first
+functions. Python modules provide the namespace; a class of static methods would
+add no state or behaviour here. Bookings, parties, guests, room reservations and
+room keys have separate modules. Each query requires a hotel scope supplied by
+the service. Repositories use that scope but do not authenticate the caller.
+
+```python
+from moseby.db.pagination import PageRequest
+from moseby.db.repositories import bookings, guests
+from moseby.db.transaction import transaction
+
+with transaction(engine) as connection:
+    booking = bookings.find_by_id(connection, booking_id, hotel_id=hotel_id)
+    guest_page = guests.find_all_by_booking_id(
+        connection, booking_id, hotel_id=hotel_id, page=PageRequest(limit=50)
+    )
+```
+
+`find_by_id` returns one typed row or `None`. `find_by_ids` returns a dictionary
+of found IDs, omitting missing and out-of-scope resources; batches accept up to
+100 input IDs. `find_all_by_*` returns a flat page. Repositories share the caller's
+connection and never commit or acquire another one.
+
+[Pagination](moseby/db/pagination.py) orders by `(created_at, id)` ascending.
+Continue with `PageRequest(cursor=page.next_cursor)` until the cursor is null.
+Tokens bind to the query and its scope/filters; changing page size is allowed.
+Tokens are continuation positions, not credentials or snapshots. Every page
+reapplies scope. Rows may change between requests, and inserts behind the cursor
+require a refresh to see. Sequence-based runtime feeds have their own ordering.
+
+[Database read models](moseby/db/models) are frozen Pydantic models, separate from
+gateway shapes. They retain integer UTC-microsecond timestamps; service mapping
+converts them for the API. Reservation reads include their exact agreed price
+version. Key reads take `now` in UTC microseconds and derive access from the
+current booking, reservation dates and revocation state.
+
+`make test-db` exercises the reads against freshly migrated, seeded databases,
+including cross-hotel lookups, cursor boundaries and more than 100 keys per stay.
 
 ## Current contracts
 
@@ -86,5 +127,5 @@ selects an implementation or changes the domain model.
 - [Schema guide](schema/README.md) and [older SQL draft](schema/draft.sql)
 
 The Python contract draft uses FastAPI to generate OpenAPI. Its handlers return
-501; application services, workers, scheduler and database access remain unimplemented.
+501; application services, workers, scheduler and mutation repositories remain unimplemented.
 The wider contracts above still distinguish accepted decisions from proposals.
