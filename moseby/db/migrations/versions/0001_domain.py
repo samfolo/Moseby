@@ -1,7 +1,7 @@
 """Hotel records, booking history and room keys.
 
 Dates are UTC microseconds since the Unix epoch. An end time is not included.
-Keep this migration self-contained; application models may change later.
+Migration-local definitions keep schema creation repeatable.
 """
 
 import sqlalchemy as sa
@@ -30,6 +30,28 @@ def _identity(prefix: str) -> tuple:
         sa.Column("created_at", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("id", name=f"pk_{prefix}"),
         sa.CheckConstraint(_id_check(prefix), name=f"ck_{prefix}_id"),
+    )
+
+
+def _updated_at() -> tuple:
+    """Repositories set this on creation and on every subsequent update."""
+    return (
+        sa.Column("updated_at", sa.Integer(), nullable=False),
+        sa.CheckConstraint("updated_at >= created_at", name="ck_updated_at"),
+    )
+
+
+def _status(
+    prefix: str,
+    choices: tuple[str, ...],
+    *,
+    column: str = "status",
+    name: str | None = None,
+) -> sa.CheckConstraint:
+    """Allow only the status values understood by this migration."""
+    values = ", ".join(f"'{prefix}_{choice}'" for choice in choices)
+    return sa.CheckConstraint(
+        f"{column} IN ({values})", name=name or f"ck_{prefix.lower()}"
     )
 
 
@@ -68,13 +90,19 @@ def _immutable(table: str, columns: tuple[str, ...]) -> None:
 
 
 def _history(table: str, parent: str) -> None:
-    """Add revisions in order, starting at 1; never edit or delete earlier versions."""
+    """Append immutable revisions in order, starting at 1."""
     _trigger(
         f"{table}_next_revision",
         "INSERT",
         table,
         "SELECT RAISE(ABORT, 'Expected the next revision');",
-        f"NEW.revision != (SELECT COALESCE(MAX(revision), 0) + 1 FROM {table} WHERE {parent} = NEW.{parent})",
+        f"""
+        NEW.revision != (
+            SELECT COALESCE(MAX(revision), 0) + 1
+            FROM {table}
+            WHERE {parent} = NEW.{parent}
+        )
+        """,
     )
     for event in ("UPDATE", "DELETE"):
         _trigger(
@@ -101,6 +129,7 @@ def _create_property_tables() -> None:
     op.create_table(
         "hotels",
         *_identity("hotel"),
+        *_updated_at(),
         *_address(),
         sa.Column("name", sa.Text(), nullable=False),
         sa.CheckConstraint("length(name) > 0", name="ck_hotels_name"),
@@ -109,6 +138,7 @@ def _create_property_tables() -> None:
     op.create_table(
         "staff_members",
         *_identity("staff_member"),
+        *_updated_at(),
         sa.Column(
             "hotel_id",
             sa.Text(),
@@ -152,6 +182,7 @@ def _create_property_tables() -> None:
     op.create_table(
         "rooms",
         *_identity("room"),
+        *_updated_at(),
         sa.Column(
             "hotel_id",
             sa.Text(),
@@ -181,6 +212,7 @@ def _create_property_tables() -> None:
     op.create_table(
         "beds",
         *_identity("bed"),
+        *_updated_at(),
         sa.Column(
             "room_id",
             sa.Text(),
@@ -201,6 +233,7 @@ def _create_booking_and_guest_tables() -> None:
     op.create_table(
         "bookings",
         *_identity("booking"),
+        *_updated_at(),
         sa.Column(
             "hotel_id",
             sa.Text(),
@@ -222,13 +255,10 @@ def _create_booking_and_guest_tables() -> None:
         sa.Column("revision", sa.Integer(), nullable=False),
         sa.Column("status", sa.Text(), nullable=False),
         sa.Column("cancellation_reason", sa.Text()),
-        sa.Column("recorded_at", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint("booking_id", "revision", name="pk_booking_revisions"),
         sa.CheckConstraint("revision >= 1", name="ck_booking_revision"),
-        sa.CheckConstraint(
-            "status IN ('BOOKING_STATUS_CONFIRMED', 'BOOKING_STATUS_CANCELLED', 'BOOKING_STATUS_COMPLETED')",
-            name="ck_booking_status",
-        ),
+        _status("BOOKING_STATUS", ("CONFIRMED", "CANCELLED", "COMPLETED")),
         sa.CheckConstraint(
             "(status = 'BOOKING_STATUS_CANCELLED' AND cancellation_reason IS NOT NULL AND length(cancellation_reason) > 0) OR (status != 'BOOKING_STATUS_CANCELLED' AND cancellation_reason IS NULL)",
             name="ck_booking_cancellation",
@@ -250,6 +280,7 @@ def _create_booking_and_guest_tables() -> None:
     op.create_table(
         "guests",
         *_identity("guest"),
+        *_updated_at(),
         sa.Column(
             "party_id",
             sa.Text(),
@@ -287,6 +318,7 @@ def _create_booking_and_guest_tables() -> None:
     op.create_table(
         "party_details",
         *_identity("party_detail"),
+        *_updated_at(),
         sa.Column(
             "party_id",
             sa.Text(),
@@ -305,8 +337,10 @@ def _create_booking_and_guest_tables() -> None:
             "CASE WHEN json_valid(referenced_guest_ids_json) THEN json_type(referenced_guest_ids_json) = 'array' ELSE 0 END",
             name="ck_party_reference_array",
         ),
-        sa.CheckConstraint(
-            "reference_status IN ('GUEST_REFERENCE_STATUS_PENDING', 'GUEST_REFERENCE_STATUS_RESOLVED', 'GUEST_REFERENCE_STATUS_AMBIGUOUS', 'GUEST_REFERENCE_STATUS_FAILED')",
+        _status(
+            "GUEST_REFERENCE_STATUS",
+            ("PENDING", "RESOLVED", "AMBIGUOUS", "FAILED"),
+            column="reference_status",
             name="ck_party_reference_status",
         ),
         sqlite_strict=True,
@@ -351,7 +385,7 @@ def _create_room_access_tables() -> None:
         sa.Column("cancellation_reason", sa.Text()),
         sa.Column("price_id", sa.Text(), nullable=False),
         sa.Column("price_revision", sa.Integer(), nullable=False),
-        sa.Column("recorded_at", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint(
             "room_reservation_id", "revision", name="pk_room_reservation_revisions"
         ),
@@ -372,6 +406,7 @@ def _create_room_access_tables() -> None:
     op.create_table(
         "room_keys",
         *_identity("room_key"),
+        *_updated_at(),
         sa.Column(
             "room_reservation_id",
             sa.Text(),
@@ -396,6 +431,7 @@ def _create_activity_tables() -> None:
     op.create_table(
         "venues",
         *_identity("venue"),
+        *_updated_at(),
         *_address(),
         sa.Column("name", sa.Text(), nullable=False),
         sa.Column("capacity", sa.Integer(), nullable=False),
@@ -403,9 +439,12 @@ def _create_activity_tables() -> None:
         sa.CheckConstraint("capacity >= 0", name="ck_venue_capacity"),
         sqlite_strict=True,
     )
-    # New types are rows in this table, so adding one does not need a migration.
+    # Activity types are maintained as catalogue rows.
     activity_types = op.create_table(
         "activity_types",
+        # The activity type code serves as its natural key.
+        sa.Column("created_at", sa.Integer(), nullable=False),
+        *_updated_at(),
         sa.Column("code", sa.Text(), nullable=False),
         sa.Column("name", sa.Text(), nullable=False),
         sa.PrimaryKeyConstraint("code", name="pk_activity_types"),
@@ -416,18 +455,26 @@ def _create_activity_tables() -> None:
         sa.CheckConstraint("length(name) > 0", name="ck_activity_type_name"),
         sqlite_strict=True,
     )
-    op.bulk_insert(
-        activity_types,
-        [
-            {"code": "ACTIVITY_TYPE_UNKNOWN", "name": "Unknown"},
-            {"code": "ACTIVITY_TYPE_TENNIS", "name": "Tennis"},
-            {"code": "ACTIVITY_TYPE_POTTERY", "name": "Pottery"},
-            {"code": "ACTIVITY_TYPE_GUIDED_TOUR", "name": "Guided tour"},
-        ],
-    )
+    # Seed creation and update times together, using the migration's execution time.
+    now = sa.text("CAST(strftime('%s', 'now') AS INTEGER) * 1000000")
+    for code, name in (
+        ("ACTIVITY_TYPE_UNKNOWN", "Unknown"),
+        ("ACTIVITY_TYPE_TENNIS", "Tennis"),
+        ("ACTIVITY_TYPE_POTTERY", "Pottery"),
+        ("ACTIVITY_TYPE_GUIDED_TOUR", "Guided tour"),
+    ):
+        op.execute(
+            activity_types.insert().values(
+                code=op.inline_literal(code),
+                name=op.inline_literal(name),
+                created_at=now,
+                updated_at=now,
+            )
+        )
     op.create_table(
         "activities",
         *_identity("activity"),
+        *_updated_at(),
         sa.Column(
             "venue_id",
             sa.Text(),
@@ -511,7 +558,7 @@ def _create_activity_tables() -> None:
         sa.Column("price_id", sa.Text(), nullable=False),
         sa.Column("price_revision", sa.Integer(), nullable=False),
         sa.Column("price_unit", sa.Text(), nullable=False),
-        sa.Column("recorded_at", sa.Integer(), nullable=False),
+        sa.Column("created_at", sa.Integer(), nullable=False),
         sa.PrimaryKeyConstraint(
             "activity_reservation_id",
             "revision",
@@ -539,7 +586,7 @@ def _create_activity_tables() -> None:
 
 
 def _create_history_rules() -> None:
-    """Keep earlier versions unchanged; do not reopen cancellations or disabled keys."""
+    """Preserve accepted history and enforce terminal cancellation and revocation."""
     for table, parent in (
         ("price_versions", "price_id"),
         ("booking_revisions", "booking_id"),
@@ -554,12 +601,21 @@ def _create_history_rules() -> None:
         "SELECT RAISE(ABORT, 'A booking starts confirmed');",
         "NEW.revision = 1 AND NEW.status != 'BOOKING_STATUS_CONFIRMED'",
     )
+    # Sequential, immutable history makes the latest state sufficient for cancellation.
     _trigger(
         "booking_cancellation_terminal",
         "INSERT",
         "booking_revisions",
         "SELECT RAISE(ABORT, 'Booking cancellation is terminal');",
-        "EXISTS (SELECT 1 FROM booking_revisions WHERE booking_id = NEW.booking_id AND status = 'BOOKING_STATUS_CANCELLED')",
+        """
+        (
+            SELECT status
+            FROM booking_revisions
+            WHERE booking_id = NEW.booking_id
+            ORDER BY revision DESC
+            LIMIT 1
+        ) = 'BOOKING_STATUS_CANCELLED'
+        """,
     )
     for table, parent in (
         ("room_reservation_revisions", "room_reservation_id"),
@@ -570,7 +626,15 @@ def _create_history_rules() -> None:
             "INSERT",
             table,
             "SELECT RAISE(ABORT, 'Reservation cancellation is terminal');",
-            f"EXISTS (SELECT 1 FROM {table} WHERE {parent} = NEW.{parent} AND cancelled = 1)",
+            f"""
+            (
+                SELECT cancelled
+                FROM {table}
+                WHERE {parent} = NEW.{parent}
+                ORDER BY revision DESC
+                LIMIT 1
+            ) = 1
+            """,
         )
         _trigger(
             f"{table}_starts_uncancelled",
@@ -584,7 +648,12 @@ def _create_history_rules() -> None:
         "UPDATE",
         "room_keys",
         "SELECT RAISE(ABORT, 'Key revocation cannot be reversed or rewritten');",
-        "OLD.deactivated_at IS NOT NULL AND (NEW.deactivated_at IS NOT OLD.deactivated_at OR NEW.deactivation_reason IS NOT OLD.deactivation_reason)",
+        """
+        OLD.deactivated_at IS NOT NULL AND (
+            NEW.deactivated_at IS NOT OLD.deactivated_at
+            OR NEW.deactivation_reason IS NOT OLD.deactivation_reason
+        )
+        """,
     )
 
 
@@ -603,7 +672,7 @@ def _create_membership_rules() -> None:
         ("room_reservations", ("id", "booking_id", "room_id", "created_at")),
         ("room_keys", ("id", "room_reservation_id", "created_at")),
         ("venues", ("id", "created_at")),
-        ("activity_types", ("code",)),
+        ("activity_types", ("code", "created_at")),
         ("activities", ("id", "created_at")),
         (
             "activity_reservations",
@@ -616,7 +685,10 @@ def _create_membership_rules() -> None:
         "INSERT",
         "room_reservations",
         "SELECT RAISE(ABORT, 'Room and booking must belong to the same hotel');",
-        "(SELECT hotel_id FROM rooms WHERE id = NEW.room_id) != (SELECT hotel_id FROM bookings WHERE id = NEW.booking_id)",
+        """
+        (SELECT hotel_id FROM rooms WHERE id = NEW.room_id)
+            != (SELECT hotel_id FROM bookings WHERE id = NEW.booking_id)
+        """,
     )
     # Check the guest IDs stored in each note’s JSON list.
     for event in ("INSERT", "UPDATE"):
@@ -625,80 +697,140 @@ def _create_membership_rules() -> None:
             event,
             "party_details",
             """
-            -- Check that the JSON is valid before reading it.
-            SELECT CASE WHEN NOT json_valid(NEW.referenced_guest_ids_json)
-                THEN RAISE(ABORT, 'Guest references must be valid JSON') END;
+            -- Validate JSON before inspecting its contents.
+            SELECT CASE
+                WHEN NOT json_valid(NEW.referenced_guest_ids_json)
+                THEN RAISE(ABORT, 'Guest references must be valid JSON')
+            END;
 
-            -- References are a list, not an object or scalar.
-            SELECT CASE WHEN json_type(NEW.referenced_guest_ids_json) != 'array'
-                THEN RAISE(ABORT, 'Guest references must be an array') END;
+            -- Store references as an array of guest IDs.
+            SELECT CASE
+                WHEN json_type(NEW.referenced_guest_ids_json) != 'array'
+                THEN RAISE(ABORT, 'Guest references must be an array')
+            END;
 
-            -- Every entry names a guest from this party.
-            SELECT CASE WHEN EXISTS (
-                SELECT 1 FROM json_each(NEW.referenced_guest_ids_json) AS ref
-                WHERE ref.type != 'text' OR NOT EXISTS (
-                    SELECT 1 FROM guests WHERE id = ref.value AND party_id = NEW.party_id
+            -- Each reference names a guest in this party.
+            SELECT CASE
+                WHEN EXISTS (
+                    SELECT 1
+                    FROM json_each(NEW.referenced_guest_ids_json) AS ref
+                    WHERE ref.type != 'text' OR NOT EXISTS (
+                        SELECT 1
+                        FROM guests
+                        WHERE id = ref.value
+                          AND party_id = NEW.party_id
+                    )
                 )
-            ) THEN RAISE(ABORT, 'Referenced guests must belong to the party') END;
+                THEN RAISE(ABORT, 'Referenced guests must belong to the party')
+            END;
 
-            -- The same guest cannot appear twice.
-            SELECT CASE WHEN (SELECT COUNT(*) FROM json_each(NEW.referenced_guest_ids_json)) !=
-                (SELECT COUNT(DISTINCT value) FROM json_each(NEW.referenced_guest_ids_json))
-                THEN RAISE(ABORT, 'Guest references must be unique') END;
+            -- Each guest appears once in the reference list.
+            SELECT CASE
+                WHEN (
+                    SELECT COUNT(*)
+                    FROM json_each(NEW.referenced_guest_ids_json)
+                ) != (
+                    SELECT COUNT(DISTINCT value)
+                    FROM json_each(NEW.referenced_guest_ids_json)
+                )
+                THEN RAISE(ABORT, 'Guest references must be unique')
+            END;
 
-            -- Keep the guest list empty until classification succeeds.
-            SELECT CASE WHEN NEW.reference_status != 'GUEST_REFERENCE_STATUS_RESOLVED'
-                AND json_array_length(NEW.referenced_guest_ids_json) != 0
-                THEN RAISE(ABORT, 'Unresolved references cannot assert guest identities') END;
+            -- Keep references empty until classification resolves them.
+            SELECT CASE
+                WHEN NEW.reference_status != 'GUEST_REFERENCE_STATUS_RESOLVED'
+                  AND json_array_length(NEW.referenced_guest_ids_json) != 0
+                THEN RAISE(ABORT, 'Unresolved references cannot assert guest identities')
+            END;
         """,
         )
+    # Guest membership is fixed, so references belong to notes in this party.
     _trigger(
         "referenced_guest_no_delete",
         "DELETE",
         "guests",
         "SELECT RAISE(ABORT, 'Guest is referenced by party evidence');",
-        "EXISTS (SELECT 1 FROM party_details, json_each(referenced_guest_ids_json) AS ref WHERE ref.value = OLD.id)",
+        """
+        EXISTS (
+            SELECT 1
+            FROM party_details, json_each(referenced_guest_ids_json) AS ref
+            WHERE party_details.party_id = OLD.party_id
+              AND ref.value = OLD.id
+        )
+        """,
     )
 
 
 def _create_views() -> None:
-    """Save these queries under names; results are read fresh, not stored."""
-    # Keep a version only if there is no newer version of the same record.
+    """Expose named queries that compute current state when read."""
+    # Select the highest revision for each parent record.
     for table, parent, view in (
+        # Current catalogue amount and currency for each price.
         ("price_versions", "price_id", "current_price_versions"),
+        # Latest accepted lifecycle state for each booking.
         ("booking_revisions", "booking_id", "current_booking_revisions"),
+        # Current stay dates, agreed price and cancellation for each allocation.
         (
             "room_reservation_revisions",
             "room_reservation_id",
             "current_room_reservation_revisions",
         ),
+        # Current cancellation and agreed price for each activity reservation.
         (
             "activity_reservation_revisions",
             "activity_reservation_id",
             "current_activity_reservation_revisions",
         ),
     ):
-        op.execute(f"""CREATE VIEW {view} AS SELECT entry.* FROM {table} AS entry
-            WHERE NOT EXISTS (SELECT 1 FROM {table} AS newer
-                WHERE newer.{parent} = entry.{parent} AND newer.revision > entry.revision)""")
-    # Find the key’s reservation, its latest dates, and the booking’s latest status.
-    # A cancelled booking or reservation stops access without updating each key.
-    # The repository must also check that now is within the reservation’s dates.
-    op.execute("""CREATE VIEW room_key_access AS
-        SELECT key.*, reservation.room_id, reservation.booking_id,
-               current.min_date, current.max_date,
+        op.execute(f"""
+            CREATE VIEW {view} AS
+            SELECT entry.*
+            FROM {table} AS entry
+            -- The (parent, revision) key supports a direct lookup of current state.
+            WHERE entry.revision = (
+                SELECT MAX(latest.revision)
+                FROM {table} AS latest
+                WHERE latest.{parent} = entry.{parent}
+            )
+        """)
+
+    # Combine the key's explicit revocation with its current reservation and booking.
+    # The repository also checks that now is within the reservation's dates.
+    op.execute("""
+        CREATE VIEW room_key_access AS
+        SELECT key.*,
+               reservation.room_id,
+               reservation.booking_id,
+               current.min_date,
+               current.max_date,
                (key.deactivated_at IS NULL AND current.cancelled = 0
                 AND booking.status = 'BOOKING_STATUS_CONFIRMED') AS eligible
         FROM room_keys AS key
-        JOIN room_reservations AS reservation ON reservation.id = key.room_reservation_id
-        JOIN current_room_reservation_revisions AS current ON current.room_reservation_id = reservation.id
-        JOIN current_booking_revisions AS booking ON booking.booking_id = reservation.booking_id
+        -- Each key belongs to one stable room allocation.
+        JOIN room_reservations AS reservation
+            ON reservation.id = key.room_reservation_id
+        -- Latest dates and cancellation for that allocation.
+        JOIN room_reservation_revisions AS current
+            ON current.room_reservation_id = reservation.id
+           AND current.revision = (
+               SELECT MAX(revision)
+               FROM room_reservation_revisions
+               WHERE room_reservation_id = reservation.id
+           )
+        -- Latest lifecycle state for the parent booking.
+        JOIN booking_revisions AS booking
+            ON booking.booking_id = reservation.booking_id
+           AND booking.revision = (
+               SELECT MAX(revision)
+               FROM booking_revisions
+               WHERE booking_id = reservation.booking_id
+           )
     """)
 
 
 def downgrade() -> None:
     """Drop the objects added here, removing dependent tables first."""
-    # Keep this list local: future application tables must not change old rollbacks.
+    # List the views owned by this migration in dependency order.
     for view in (
         "room_key_access",
         "current_activity_reservation_revisions",

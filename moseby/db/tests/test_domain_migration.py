@@ -28,7 +28,7 @@ class DomainMigrationTests(unittest.TestCase):
             timeout=0.05,
         )
         self.config = Config(str(ROOT / "alembic.ini"))
-        self.migrate("head")
+        self.migrate("0001_domain")
         self.metadata = sa.MetaData()
         with self.engine.connect() as connection:
             self.metadata.reflect(connection)
@@ -45,7 +45,12 @@ class DomainMigrationTests(unittest.TestCase):
                 self.config.attributes.pop("connection", None)
 
     def insert(self, connection, table, **values):
-        connection.execute(self.metadata.tables[table].insert().values(**values))
+        target = self.metadata.tables[table]
+        if "created_at" in target.c:
+            values.setdefault("created_at", 0)
+        if "updated_at" in target.c:
+            values.setdefault("updated_at", values["created_at"])
+        connection.execute(target.insert().values(**values))
 
     def seed(self, connection):
         self.insert(
@@ -92,7 +97,7 @@ class DomainMigrationTests(unittest.TestCase):
                 booking_id=identifier("booking", number),
                 revision=1,
                 status="BOOKING_STATUS_CONFIRMED",
-                recorded_at=0,
+                created_at=0,
             )
             self.insert(
                 connection,
@@ -173,7 +178,7 @@ class DomainMigrationTests(unittest.TestCase):
             cancelled=0,
             price_id=identifier("price"),
             price_revision=1,
-            recorded_at=revision,
+            created_at=revision,
         )
         self.insert(connection, "room_reservation_revisions", **(values | changes))
 
@@ -185,7 +190,7 @@ class DomainMigrationTests(unittest.TestCase):
             price_id=identifier("price"),
             price_revision=1,
             price_unit="ACTIVITY_PRICE_UNIT_PER_GUEST",
-            recorded_at=revision,
+            created_at=revision,
         )
         self.insert(connection, "activity_reservation_revisions", **(values | changes))
 
@@ -212,8 +217,8 @@ class DomainMigrationTests(unittest.TestCase):
             self.assertEqual(
                 sa.inspect(connection).get_table_names(), ["alembic_version"]
             )
-        self.migrate("head")
-        self.migrate("head")
+        self.migrate("0001_domain")
+        self.migrate("0001_domain")
 
     def test_transaction_rollback_including_ddl(self):
         with self.assertRaisesRegex(RuntimeError, "abort"):
@@ -238,7 +243,7 @@ class DomainMigrationTests(unittest.TestCase):
             with transaction(self.engine, write=True) as connection:
                 self.config.attributes["connection"] = connection
                 try:
-                    command.upgrade(self.config, "head")
+                    command.upgrade(self.config, "0001_domain")
                     raise RuntimeError("abort")
                 finally:
                     self.config.attributes.pop("connection")
@@ -285,7 +290,7 @@ class DomainMigrationTests(unittest.TestCase):
                 revision=2,
                 status="BOOKING_STATUS_CANCELLED",
                 cancellation_reason="Cancelled stay",
-                recorded_at=2,
+                created_at=2,
             )
             self.invalid(
                 connection,
@@ -295,7 +300,7 @@ class DomainMigrationTests(unittest.TestCase):
                     booking_id=identifier("booking"),
                     revision=3,
                     status="BOOKING_STATUS_CONFIRMED",
-                    recorded_at=3,
+                    created_at=3,
                 ),
             )
 
@@ -401,7 +406,7 @@ class DomainMigrationTests(unittest.TestCase):
                 revision=2,
                 status="BOOKING_STATUS_CANCELLED",
                 cancellation_reason="Cancelled stay",
-                recorded_at=2,
+                created_at=2,
             )
             row = connection.exec_driver_sql(
                 "SELECT eligible, deactivated_at FROM room_key_access"
@@ -499,7 +504,7 @@ class DomainMigrationTests(unittest.TestCase):
             TypeAdapter(ActivityTypeCode).validate_python("kayaking")
         # Rollback must remove caller-added lookup rows as well as seeded rows.
         self.migrate("base", downgrade=True)
-        self.migrate("head")
+        self.migrate("0001_domain")
 
     def test_row_checks_and_known_enum_values(self):
         with transaction(self.engine, write=True) as connection:
@@ -567,6 +572,101 @@ class DomainMigrationTests(unittest.TestCase):
                     currency="gbp",
                     created_at=0,
                 ),
+            )
+
+    def test_current_views_return_one_latest_revision_per_parent(self):
+        with transaction(self.engine, write=True) as connection:
+            self.seed(connection)
+            self.insert(connection, "prices", id=identifier("price", 2), created_at=0)
+            self.insert(
+                connection,
+                "price_versions",
+                price_id=identifier("price"),
+                revision=2,
+                amount_minor=200,
+                currency="GBP",
+                created_at=1,
+            )
+            self.room_revision(connection, 2, max_date=30)
+            self.room_revision(connection, 3, max_date=40)
+            self.activity_revision(
+                connection, 2, cancelled=1, cancellation_reason="Changed plans"
+            )
+            self.insert(
+                connection,
+                "booking_revisions",
+                booking_id=identifier("booking"),
+                revision=2,
+                status="BOOKING_STATUS_COMPLETED",
+                created_at=2,
+            )
+
+            for table, parent, view in (
+                ("price_versions", "price_id", "current_price_versions"),
+                ("booking_revisions", "booking_id", "current_booking_revisions"),
+                (
+                    "room_reservation_revisions",
+                    "room_reservation_id",
+                    "current_room_reservation_revisions",
+                ),
+                (
+                    "activity_reservation_revisions",
+                    "activity_reservation_id",
+                    "current_activity_reservation_revisions",
+                ),
+            ):
+                expected = {}
+                for row in connection.execute(
+                    sa.select(self.metadata.tables[table])
+                ).mappings():
+                    if (
+                        row[parent] not in expected
+                        or row["revision"] > expected[row[parent]]["revision"]
+                    ):
+                        expected[row[parent]] = dict(row)
+                actual = (
+                    connection.exec_driver_sql(f"SELECT * FROM {view}").mappings().all()
+                )
+                self.assertEqual(len(actual), len(expected))
+                self.assertEqual({row[parent]: dict(row) for row in actual}, expected)
+
+    def test_guest_reference_delete_check_preserves_referenced_guests(self):
+        with transaction(self.engine, write=True) as connection:
+            self.seed(connection)
+            for guest, party in ((3, 1), (4, 2)):
+                self.insert(
+                    connection,
+                    "guests",
+                    id=identifier("guest", guest),
+                    party_id=identifier("party", party),
+                    created_at=0,
+                    first_name="Alex",
+                    last_name="Guest",
+                    age=30,
+                )
+            self.insert(
+                connection,
+                "party_details",
+                id=identifier("party_detail"),
+                party_id=identifier("party"),
+                created_at=0,
+                text="Alex likes tennis",
+                referenced_guest_ids_json=json.dumps([identifier("guest", 3)]),
+                reference_format_version=1,
+                reference_status="GUEST_REFERENCE_STATUS_RESOLVED",
+            )
+            guests = self.metadata.tables["guests"]
+            self.invalid(
+                connection,
+                lambda: connection.execute(
+                    guests.delete().where(guests.c.id == identifier("guest", 3))
+                ),
+            )
+            self.assertEqual(
+                connection.execute(
+                    guests.delete().where(guests.c.id == identifier("guest", 4))
+                ).rowcount,
+                1,
             )
 
     def test_second_writer_cannot_read_then_reserve_under_the_same_write_lock(self):
