@@ -38,7 +38,7 @@ Field descriptions and enum docstrings appear in the generated OpenAPI.
   snake_case payload keys exactly; identifiers and permission codes retain their
   agreed spelling.
 - Room `tier` uses standard/VIP/unknown values; search `tiers` matches any supplied
-  tier. Descriptive bed/activity types and staff roles also allow explicit unknown.
+  tier. Bed types and staff roles also allow explicit unknown.
   Required fields remain required and arbitrary strings are rejected. Operational
   states, contact channels and pricing units do not gain an unknown fallback.
 - One `DateRange` uses required `min_date`/`max_date` bounds. All scheduled intervals

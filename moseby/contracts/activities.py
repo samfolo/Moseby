@@ -8,14 +8,13 @@ from .common import Contract, IdFilter, Request, SearchRequestPayload
 from .identifiers import ActivityId, PriceId, VenueId
 from .ranges import DateRange, NumberRange
 
-
-class ActivityType(StrEnum):
-    """The initial curated activity catalogue."""
-
-    UNKNOWN = "ACTIVITY_TYPE_UNKNOWN"
-    TENNIS = "ACTIVITY_TYPE_TENNIS"
-    POTTERY = "ACTIVITY_TYPE_POTTERY"
-    GUIDED_TOUR = "ACTIVITY_TYPE_GUIDED_TOUR"
+type ActivityTypeCode = Annotated[
+    str,
+    Field(
+        pattern=r"^ACTIVITY_TYPE_[A-Z][A-Z0-9_]*$",
+        description="Code from the activity-types table, such as ACTIVITY_TYPE_TENNIS.",
+    ),
+]
 
 
 class ActivityPriceUnit(StrEnum):
@@ -44,7 +43,7 @@ class Activity(Contract):
     id: ActivityId
     venue_id: VenueId
     title: str = Field(min_length=1)
-    type: ActivityType
+    type: ActivityTypeCode
     description: str
     date_range: DateRange
     capacity: int | None = Field(
@@ -63,7 +62,7 @@ class Activity(Contract):
 class SearchActivitiesRequestPayload(SearchRequestPayload):
     ids: IdFilter[ActivityId] | None = None
     venue_ids: IdFilter[VenueId] | None = None
-    types: Annotated[list[ActivityType], Field(min_length=1)] | None = None
+    types: Annotated[list[ActivityTypeCode], Field(min_length=1)] | None = None
     date_range: DateRange | None = Field(
         default=None, description="Match events overlapping this interval."
     )

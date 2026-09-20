@@ -62,12 +62,14 @@ existing permission contract when those routes are added.
 - Domain enum wire values use SCREAMING_SNAKE_CASE. Field masks instead name
   payload fields exactly: `dietary_requirements`. `UpdateGuestFieldMask` is a
   constrained string type, with no case conversion or domain enum.
-- Descriptive enums support an explicit `UNKNOWN`: bed type, room tier, activity
-  type and staff role. Missing required fields and unrecognised strings still
+- Descriptive enums support an explicit `UNKNOWN`: bed type, room tier and staff
+  role. Missing required fields and unrecognised strings still
   fail validation; there is no automatic fallback. Unknown staff roles grant
   no permissions, and unknown bed types do not establish sleeping capacity.
   Booking/service/classification states, pricing units and contact channels keep
   their defined choices; uncertainty must not silently select behaviour.
+- Activity types are lookup rows with stable codes and display names. Adding a
+  type needs no schema change; the API accepts codes rather than a fixed enum.
 - A room has one required `tier`: `ROOM_TIER_STANDARD`, `ROOM_TIER_VIP` or
   `ROOM_TIER_UNKNOWN`. Search uses optional `tiers`, matching any listed value.
   Omission means no tier filter; an empty list is invalid.

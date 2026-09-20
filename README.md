@@ -1,7 +1,8 @@
 # Moseby
 
 A Python experiment in proactive, staff-facing resort operations.
-The project is in contract design; the SQL draft is not yet a complete application.
+The project has reviewed gateway contracts and a hand-authored domain migration.
+The gateway handlers and repositories are not yet implemented.
 
 ## Formatting and linting
 
@@ -20,6 +21,32 @@ formatting problems without changing files. Rules live in `pyproject.toml`:
 88-column formatting, basic errors, unused names and common bug patterns.
 Docstrings remain concise; no mandatory docstring boilerplate is imposed.
 For another environment, pass `PYTHON=/path/to/python` to either command.
+
+## Database
+
+Hand-authored [Alembic migrations](moseby/db/migrations/versions) define the SQLite
+schema. The first migration covers domain tables and immutable revision history.
+Checkout, runtime tables and repository capacity checks are still pending.
+Performance indexes are planned after the runtime migration; primary-key and
+uniqueness indexes are already present.
+`schema/draft.sql` is historical and is not used to initialize the database.
+
+```sh
+make migrate
+make test-db
+```
+
+The default database is `moseby.db` (ignored by Git). To choose another SQLite file:
+
+```sh
+MOSEBY_DATABASE_URL=sqlite:////absolute/path/moseby.db make migrate
+```
+
+Inspect SQL without creating a database:
+
+```sh
+.venv/bin/python -m alembic upgrade head --sql
+```
 
 ## Current contracts
 

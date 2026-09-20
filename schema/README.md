@@ -1,4 +1,9 @@
-# Domain schema draft
+# Historical domain schema draft
+
+**Superseded:** initialize databases with the hand-authored Alembic migrations
+in [moseby/db/migrations](../moseby/db/migrations).
+This SQL remains a historical design artifact and is not used by the application.
+The descriptions below refer to that older artifact.
 
 [draft.sql](draft.sql) is the current executable SQLite structure for the
 hotel-side concepts reviewed so far. It is a review artifact, not a production

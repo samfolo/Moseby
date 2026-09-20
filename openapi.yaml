@@ -1076,7 +1076,7 @@ components:
           minLength: 1
           title: Title
         type:
-          $ref: '#/components/schemas/ActivityType'
+          $ref: '#/components/schemas/ActivityTypeCode'
         description:
           type: string
           title: Description
@@ -1209,15 +1209,10 @@ components:
     ActivityReservationId:
       type: string
       pattern: ^activity_reservation_[0-7][0-9A-HJKMNP-TV-Z]{25}$
-    ActivityType:
+    ActivityTypeCode:
       type: string
-      enum:
-      - ACTIVITY_TYPE_UNKNOWN
-      - ACTIVITY_TYPE_TENNIS
-      - ACTIVITY_TYPE_POTTERY
-      - ACTIVITY_TYPE_GUIDED_TOUR
-      title: ActivityType
-      description: The initial curated activity catalogue.
+      pattern: ^ACTIVITY_TYPE_[A-Z][A-Z0-9_]*$
+      description: Code from the activity-types table, such as ACTIVITY_TYPE_TENNIS.
     Address:
       properties:
         line_1:
@@ -2223,7 +2218,7 @@ components:
         types:
           anyOf:
           - items:
-              $ref: '#/components/schemas/ActivityType'
+              $ref: '#/components/schemas/ActivityTypeCode'
             type: array
             minItems: 1
           - type: 'null'
