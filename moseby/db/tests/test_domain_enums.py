@@ -16,7 +16,7 @@ from moseby.domain.enums import (
     RoomTier,
     StaffRole,
 )
-from moseby.runtime.enums import RunStatus
+from moseby.runtime.enums import JobStatus, RunStatus, TaskStatus
 from moseby.runtime.models.incoming_thread_records import (
     IncomingThreadRecordDeliveryMode,
     IncomingThreadRecordKind,
@@ -39,6 +39,8 @@ class DomainEnumTests(StayDatabaseTestCase):
                 ("rooms", RoomTier),
                 ("staff_members", StaffRole),
                 ("runs", RunStatus),
+                ("jobs", JobStatus),
+                ("tasks", TaskStatus),
                 ("thread_records", ThreadRecordKind),
                 ("incoming_thread_records", IncomingThreadRecordKind),
                 ("incoming_thread_records", IncomingThreadRecordDeliveryMode),

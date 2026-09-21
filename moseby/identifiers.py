@@ -40,3 +40,6 @@ type InferenceRequestId = Annotated[
 type ScheduleOccurrenceId = Annotated[
     str, Field(pattern=rf"^occurrence_{ULID_PATTERN}$")
 ]
+
+type TaskId = Annotated[str, Field(pattern=rf"^task_{ULID_PATTERN}$")]
+type CompletionId = Annotated[str, Field(pattern=rf"^completion_{ULID_PATTERN}$")]

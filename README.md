@@ -121,6 +121,12 @@ select conversation kinds for public responses and validate payloads by kind and
 format version. A waiting run remains active, and a pending steer remains visible
 after its target run ends. These reads neither deliver input nor advance a run.
 
+Job, task, claim and completion reads require the acting staff member to own the
+job and any linked thread. Request lookups use the actor, operation and request ID
+together. Claims remain readable after expiry; worker writes must check the token
+and expiry in the write itself. Completion searches show undelivered results by
+default, including results for stopped runs.
+
 `make test-db` exercises the reads against freshly migrated, seeded databases,
 including cross-hotel lookups, cursor boundaries, cancellation and more than 100
 keys or activity reservations.

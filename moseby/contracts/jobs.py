@@ -1,23 +1,14 @@
 """Accepted operations and their progress; task execution stays inside the runtime."""
 
-from enum import StrEnum
 from typing import Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
 from moseby.identifiers import JobId, RunId, StaffMemberId, ThreadId, ThreadRecordId
+from moseby.runtime.enums import JobStatus as JobStatus
 from moseby.runtime.models.common import ErrorDetails, JsonObject, ToolCallId
 
 from .common import Contract, PageRequest, Request
-
-
-class JobStatus(StrEnum):
-    QUEUED = "JOB_STATUS_QUEUED"
-    RUNNING = "JOB_STATUS_RUNNING"
-    WAITING = "JOB_STATUS_WAITING"
-    SUCCEEDED = "JOB_STATUS_SUCCEEDED"
-    FAILED = "JOB_STATUS_FAILED"
-    CANCELLED = "JOB_STATUS_CANCELLED"
 
 
 class Job(Contract):

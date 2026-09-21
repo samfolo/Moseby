@@ -290,3 +290,85 @@ incoming_thread_records = Table(
     Column("cancelled_at", Integer),
     Column("cancelled_by_staff_member_id", Text),
 )
+
+request_deduplication = Table(
+    "request_deduplication",
+    metadata,
+    Column("actor_staff_member_id", Text),
+    Column("operation", Text),
+    Column("request_id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("request_json", JSON),
+    Column("response_json", JSON),
+)
+
+jobs = Table(
+    "jobs",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("actor_staff_member_id", Text),
+    Column("operation", Text),
+    Column("request_id", Text),
+    Column("thread_id", Text),
+    Column("run_id", Text),
+    Column("source_record_id", Text),
+    Column("tool_call_id", Text),
+    Column("handler", Text),
+    Column("phase", Text),
+    Column("format_version", Integer),
+    Column("input_json", JSON),
+    Column("status", Text),
+    Column("result_json", JSON),
+    Column("error_json", JSON),
+    Column("finished_at", Integer),
+)
+
+tasks = Table(
+    "tasks",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("job_id", Text),
+    Column("step_key", Text),
+    Column("handler", Text),
+    Column("format_version", Integer),
+    Column("input_json", JSON),
+    Column("status", Text),
+    Column("attempt_count", Integer),
+    Column("available_at", Integer),
+    Column("started_at", Integer),
+    Column("finished_at", Integer),
+    Column("result_json", JSON),
+    Column("error_json", JSON),
+)
+
+task_claims = Table(
+    "task_claims",
+    metadata,
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("task_id", Text),
+    Column("token", Text),
+    Column("worker_id", Text),
+    Column("claimed_at", Integer),
+    Column("heartbeat_at", Integer),
+    Column("expires_at", Integer),
+)
+
+completion_outbox = Table(
+    "completion_outbox",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("job_id", Text),
+    Column("thread_id", Text),
+    Column("format_version", Integer),
+    Column("payload_json", JSON),
+    Column("record_id", Text),
+    Column("appended_at", Integer),
+)
