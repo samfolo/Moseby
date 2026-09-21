@@ -1,10 +1,11 @@
+from moseby.agents.identity import AgentAttribution
 from moseby.identifiers import RunId, StaffMemberId, ThreadId
 from moseby.runtime.enums import RunStatus
 
 from .common import Row, StoredEnum
 
 
-class RunRow(Row):
+class RunRow(AgentAttribution, Row):
     id: RunId
     thread_id: ThreadId
     status: StoredEnum[RunStatus]

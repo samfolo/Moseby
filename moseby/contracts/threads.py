@@ -2,6 +2,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from moseby.agents.identity import AgentAttribution
 from moseby.identifiers import (
     IncomingThreadRecordId,
     RunId,
@@ -24,7 +25,7 @@ from moseby.runtime.models.thread_records import ThreadRecordKind
 from .common import Contract, IdFilter, Request, SearchRequestPayload
 
 
-class Thread(Contract):
+class Thread(AgentAttribution, Contract):
     id: ThreadId
     creator_staff_member_id: StaffMemberId
     title: str | None

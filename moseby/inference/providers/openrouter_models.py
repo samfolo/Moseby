@@ -5,6 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, TypeAdapter
 
+from moseby.common.types import NonemptyText
 from moseby.runtime.models.messages import ToolCall
 
 from .._json import parse_object
@@ -14,7 +15,7 @@ from ..models.classification import (
     ClassificationOutput,
     ClassificationRequest,
 )
-from ..models.common import JsonObject, NonemptyText
+from ..models.common import JsonObject
 from ..models.generation import AssistantMessage, GenerationRequest
 
 

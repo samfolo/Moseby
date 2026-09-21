@@ -2569,6 +2569,11 @@ components:
       type: object
       title: Address
       description: Postal location; fields may be absent where they do not apply.
+    AgentId:
+      type: string
+      maxLength: 64
+      minLength: 1
+      pattern: ^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$
     AmountRange:
       properties:
         min_value:
@@ -4424,6 +4429,18 @@ components:
         classified.
     Run:
       properties:
+        agent_id:
+          anyOf:
+          - $ref: '#/components/schemas/AgentId'
+          - type: 'null'
+          description: Agent that owns this work.
+        agent_version:
+          anyOf:
+          - type: integer
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Agent Version
+          description: Version selected for this work.
         id:
           $ref: '#/components/schemas/RunId'
         thread_id:
@@ -5170,6 +5187,18 @@ components:
       title: SuccessfulToolResultPayload
     Thread:
       properties:
+        agent_id:
+          anyOf:
+          - $ref: '#/components/schemas/AgentId'
+          - type: 'null'
+          description: Agent that owns this work.
+        agent_version:
+          anyOf:
+          - type: integer
+            exclusiveMinimum: 0.0
+          - type: 'null'
+          title: Agent Version
+          description: Version selected for this work.
         id:
           $ref: '#/components/schemas/ThreadId'
         creator_staff_member_id:

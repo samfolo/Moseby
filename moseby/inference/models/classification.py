@@ -3,7 +3,9 @@ from typing import Annotated, Literal
 
 from pydantic import Field, JsonValue
 
-from .common import InferenceModel, JsonObject, NonemptyText, Probability
+from moseby.common.types import NonemptyText
+
+from .common import InferenceModel, JsonObject, Probability
 
 
 class ClassificationKind(StrEnum):

@@ -46,6 +46,34 @@ class PermissionResolver:
         return any(PermissionResolver.matches(grant, required) for grant in grants)
 
     @staticmethod
+    def intersection(
+        first: Iterable[Permission], second: Iterable[Permission]
+    ) -> tuple[Permission, ...]:
+        """Keep the narrower grant wherever both sets allow the same action."""
+        second = tuple(second)
+        shared = set()
+        for left in first:
+            for right in second:
+                if PermissionResolver.matches(left, right):
+                    shared.add(right)
+                elif PermissionResolver.matches(right, left):
+                    shared.add(left)
+        # A broader shared grant already covers any of its descendants.
+        return tuple(
+            sorted(
+                (
+                    grant
+                    for grant in shared
+                    if not any(
+                        other != grant and PermissionResolver.matches(other, grant)
+                        for other in shared
+                    )
+                ),
+                key=lambda grant: grant.root,
+            )
+        )
+
+    @staticmethod
     def covering_grants(required: Permission) -> tuple[Permission, ...]:
         """Return the exact permission followed by each ancestor, nearest first."""
         path = required.path

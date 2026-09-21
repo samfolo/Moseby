@@ -2,13 +2,14 @@ from typing import Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from moseby.agents.identity import AgentAttribution
 from moseby.identifiers import RunId, StaffMemberId, ThreadId
 from moseby.runtime.enums import RunStatus as RunStatus
 
 from .common import Contract, PageRequest, Request
 
 
-class Run(Contract):
+class Run(AgentAttribution, Contract):
     id: RunId
     thread_id: ThreadId
     status: RunStatus

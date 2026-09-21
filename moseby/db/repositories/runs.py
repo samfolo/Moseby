@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import Connection, Select, select
 
-from moseby.identifiers import RunId, StaffMemberId, ThreadId
+from moseby.identifiers import AgentId, RunId, StaffMemberId, ThreadId
 from moseby.runtime.enums import RunStatus
 
 from ..models.runs import RunRow
@@ -109,3 +109,30 @@ def find_active_by_thread_id(
         .one_or_none()
     )
     return RunRow.model_validate(dict(row)) if row is not None else None
+
+
+def find_all_by_agent_id(
+    connection: Connection,
+    agent_id: AgentId,
+    *,
+    creator_staff_member_id: StaffMemberId,
+    agent_version: int | None = None,
+    page: PageRequest | None = None,
+) -> Page[RunRow]:
+    """List this creator's runs for an agent, optionally limited to one version."""
+    statement = _select(creator_staff_member_id).where(runs.c.agent_id == agent_id)
+    if agent_version is not None:
+        statement = statement.where(runs.c.agent_version == agent_version)
+    return read_page(
+        connection,
+        statement,
+        table=runs,
+        row_type=RunRow,
+        page=page or PageRequest(),
+        query="runs.find_all_by_agent_id",
+        criteria={
+            "creator_staff_member_id": creator_staff_member_id,
+            "agent_id": agent_id,
+            "agent_version": str(agent_version),
+        },
+    )

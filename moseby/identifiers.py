@@ -1,4 +1,4 @@
-"""Resource prefixes with canonical uppercase ULIDs; validation does not prove existence."""
+"""Validated resource IDs; their shape does not prove that a resource exists."""
 
 from typing import Annotated
 
@@ -43,3 +43,9 @@ type ScheduleOccurrenceId = Annotated[
 
 type TaskId = Annotated[str, Field(pattern=rf"^task_{ULID_PATTERN}$")]
 type CompletionId = Annotated[str, Field(pattern=rf"^completion_{ULID_PATTERN}$")]
+
+# Code-defined agents use readable IDs that stay the same across versions.
+type AgentId = Annotated[
+    str,
+    Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"),
+]

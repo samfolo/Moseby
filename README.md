@@ -101,6 +101,39 @@ The provider uses the application API key. The service and runtime still need
 to connect staff permission checks, thread ownership and a record of who requested
 each call.
 
+## Define an agent
+
+An [agent definition](moseby/agents/models.py) contains its ID, version, display name,
+description, system prompt, tool names, permission limits and per-run budgets.
+Pydantic checks it when it is constructed, and it can be saved as JSON. The
+[concierge prompt](moseby/agents/prompts/concierge.v1.md) is a bundled text file,
+loaded with `concierge_prompt()`.
+
+[`create_agent`](moseby/agents/agent.py) combines a definition with current staff
+identity, saved thread context and a catalogue of tool definitions. Only the
+thread creator can use it, and their current permissions must still cover the
+thread's original permissions. The agent's own limits can narrow that access.
+Tools are offered only when all of their required permissions are covered.
+
+The service will supply identity and permissions from trusted staff data. It
+must check them again when executing tools. Thread storage already records the
+creator and original permissions. Threads and runs also have `agent_id` and
+`agent_version` columns for evaluation queries. The creation record keeps the same
+selection; `AgentThreadContext.from_creation_record()` restores it. Database
+constraints keep these values consistent and prevent attribution from changing.
+`index_agent_definitions()` rejects duplicate ID/version pairs. Keep each released
+agent definition and prompt version unchanged so existing threads retain their settings.
+
+The domain context names the acting staff member and hotel. The thread context
+holds the saved selection and access limits. Threads without a saved agent selection
+remain readable with empty attribution fields, but agent construction requires an
+explicit selection. The thread and run repositories provide
+`find_all_by_agent_id()`, with an optional version filter and forward pagination.
+
+`max_turns` counts generation requests in a run. `token_budget` covers input and
+output tokens from generation and classification. These are validated settings;
+the run loop still needs to enforce them as work proceeds.
+
 ## How the data layer works
 
 [Hand-written Alembic migrations](moseby/db/migrations/versions) define the SQLite
@@ -195,6 +228,7 @@ make test-db
 make test-models
 make test-contracts
 make test-inference
+make test-agents
 ```
 
 Database tests use freshly migrated databases with sample data. They cover hotel

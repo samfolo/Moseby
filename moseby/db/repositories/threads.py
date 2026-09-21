@@ -4,7 +4,7 @@ from collections.abc import Sequence
 
 from sqlalchemy import Connection, Select, func, select, update
 
-from moseby.identifiers import StaffMemberId, ThreadId
+from moseby.identifiers import AgentId, StaffMemberId, ThreadId
 
 from ..errors import RepositoryInvariantError, WriteConflict
 from ..models.threads import ProjectionUpdate, ThreadRow
@@ -20,6 +20,8 @@ def _select(creator_staff_member_id: StaffMemberId) -> Select:
     """Select the creator's threads and decode their saved JSON fields."""
     return select(
         threads.c.id,
+        threads.c.agent_id,
+        threads.c.agent_version,
         threads.c.creator_staff_member_id,
         threads.c.title,
         threads.c.created_at,
@@ -86,6 +88,33 @@ def find_all(
         page=page or PageRequest(),
         query="threads.find_all",
         criteria={"creator_staff_member_id": creator_staff_member_id},
+    )
+
+
+def find_all_by_agent_id(
+    connection: Connection,
+    agent_id: AgentId,
+    *,
+    creator_staff_member_id: StaffMemberId,
+    agent_version: int | None = None,
+    page: PageRequest | None = None,
+) -> Page[ThreadRow]:
+    """List this creator's threads for an agent, optionally limited to one version."""
+    statement = _select(creator_staff_member_id).where(threads.c.agent_id == agent_id)
+    if agent_version is not None:
+        statement = statement.where(threads.c.agent_version == agent_version)
+    return read_page(
+        connection,
+        statement,
+        table=threads,
+        row_type=ThreadRow,
+        page=page or PageRequest(),
+        query="threads.find_all_by_agent_id",
+        criteria={
+            "creator_staff_member_id": creator_staff_member_id,
+            "agent_id": agent_id,
+            "agent_version": str(agent_version),
+        },
     )
 
 

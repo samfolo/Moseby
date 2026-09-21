@@ -213,6 +213,11 @@ def append(
         raise WriteConflict(
             "The initial record must match the thread's creator and permissions"
         )
+    if isinstance(record, ThreadCreatedRecord):
+        agent = record.payload.agent
+        selection = (agent.id, agent.version) if agent is not None else (None, None)
+        if selection != (thread.agent_id, thread.agent_version):
+            raise WriteConflict("The initial record must match the thread's agent")
     if isinstance(record, ToolResultRecord):
         source = find_by_id(
             connection,

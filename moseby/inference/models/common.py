@@ -2,9 +2,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from moseby.json_types import JsonObject
+from moseby.common.types import JsonObject
 
-type NonemptyText = Annotated[str, Field(min_length=1)]
 type Probability = Annotated[float, Field(ge=0, le=1)]
 
 

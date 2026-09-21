@@ -3,6 +3,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import AwareDatetime, Field, TypeAdapter, model_validator
 
+from moseby.agents.identity import AgentReference
 from moseby.identifiers import (
     InferenceRequestId,
     RunId,
@@ -32,6 +33,12 @@ class ThreadRecordKind(StrEnum):
 
 
 class ThreadCreatedPayload(RuntimeModel):
+    # Preserve the payload when replaying a record without an agent selection.
+    agent: AgentReference | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description="Agent ID and version selected for this thread.",
+    )
     creator_staff_member_id: StaffMemberId
     permissions: list[Permission] = Field(
         description="Permission codes captured at thread creation."

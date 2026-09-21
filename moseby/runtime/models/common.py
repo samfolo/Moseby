@@ -2,7 +2,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from moseby.json_types import JsonObject
+from moseby.common.types import JsonObject
 
 # A handler validates the specific argument or result schema for its operation.
 type ToolCallId = Annotated[str, Field(min_length=1)]

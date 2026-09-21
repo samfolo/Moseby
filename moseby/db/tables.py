@@ -227,6 +227,8 @@ activity_reservation_revisions = Table(
 threads = Table(
     "threads",
     metadata,
+    Column("agent_id", Text),
+    Column("agent_version", Integer),
     Column("id", Text),
     Column("created_at", Integer),
     Column("updated_at", Integer),
@@ -242,6 +244,8 @@ threads = Table(
 runs = Table(
     "runs",
     metadata,
+    Column("agent_id", Text),
+    Column("agent_version", Integer),
     Column("id", Text),
     Column("created_at", Integer),
     Column("updated_at", Integer),

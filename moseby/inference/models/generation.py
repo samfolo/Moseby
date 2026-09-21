@@ -2,9 +2,10 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, model_validator
 
+from moseby.common.types import NonemptyText
 from moseby.runtime.models.messages import AssistantMessagePayload
 
-from .common import InferenceModel, JsonObject, NonemptyText
+from .common import InferenceModel, JsonObject
 
 
 class TextMessage(InferenceModel):

@@ -2,6 +2,7 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
+from moseby.agents.identity import AgentAttribution
 from moseby.identifiers import StaffMemberId, ThreadId
 from moseby.permissions import Permission
 from moseby.runtime.models.common import JsonObject
@@ -9,7 +10,7 @@ from moseby.runtime.models.common import JsonObject
 from .common import Row
 
 
-class ThreadRow(Row):
+class ThreadRow(AgentAttribution, Row):
     """The saved thread summary, including the permissions needed to check access."""
 
     id: ThreadId
