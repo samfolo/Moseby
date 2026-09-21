@@ -1,11 +1,14 @@
 from typing import Literal
 
+from pydantic import Field
+
 from moseby.identifiers import JobId, RunId, StaffMemberId, ThreadId, ThreadRecordId
 from moseby.runtime.enums import JobStatus
 from moseby.runtime.models.common import JsonObject
 
 from .common import Row, StoredEnum
 from .filters import Filters, IdFilter
+from .request_deduplication import RequestKey
 
 
 class JobRow(Row):
@@ -36,3 +39,18 @@ class JobFilters(Filters):
     thread_ids: IdFilter[ThreadId] | None = None
     run_ids: IdFilter[RunId] | None = None
     statuses: IdFilter[StoredEnum[JobStatus]] | None = None
+
+
+class NewJob(Row):
+    """An accepted command's execution details; the repository supplies its initial state."""
+
+    id: JobId
+    request_key: RequestKey
+    handler: str = Field(min_length=1)
+    phase: str = Field(min_length=1)
+    input: JsonObject
+    format_version: Literal[1] = 1
+    thread_id: ThreadId | None = None
+    run_id: RunId | None = None
+    source_record_id: ThreadRecordId | None = None
+    tool_call_id: str | None = None

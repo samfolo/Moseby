@@ -2,7 +2,8 @@
 
 A Python experiment in proactive, staff-facing resort operations.
 The project has reviewed gateway contracts, hand-authored migrations and the first
-read repositories. Gateway handlers and runtime workers remain to be implemented.
+read repositories, plus command acceptance and task-claim writes. Gateway handlers
+and runtime workers remain to be implemented.
 
 ## Formatting and linting
 
@@ -137,6 +138,31 @@ track processing separately. These reads do not execute schedules or publish mes
 including cross-hotel lookups, cursor boundaries, cancellation and more than 100
 keys or activity reservations.
 
+## Queue writes
+
+Use `transaction(engine, write=True)` and capture `now` after entering it. This
+starts SQLite's write transaction before checking mutable state. Repository
+methods share the connection and never commit on their own.
+
+- `request_deduplication.accept` returns whether the command is new. Reusing its
+  actor/operation/request key with different input raises `IdempotencyConflict`.
+- For a new command, call `jobs.create`, `tasks.create` and `save_response` in that
+  same transaction. For a replay, check current permissions and return the saved
+  job or response.
+- `task_claims.claim` and `claim_next` start one attempt with a fresh token.
+  Commit before running the handler or calling an external service.
+- `renew` extends a live lease. After execution, use `task_claims.guard` around
+  related local changes and `tasks.succeed`, `fail` or `retry`. Each outcome write
+  also checks the token and expiry itself. An exception rolls back the guarded
+  group, even if the caller catches it.
+
+A waiting run pauses agent-driving work but permits its linked tool jobs. A stop
+request blocks new attempts; already running tasks can still save evidence while
+their job remains unfinished. These writes do not resume runs or decide when a
+whole job has finished. Job coordination, completion delivery and schedule and
+notification writes are the next layers. Local claim checks do not make external
+side effects idempotent; the integration must use its own stable effect identity.
+
 ## Current contracts
 
 - [Runtime routes](moseby/contracts/runtime_api.py) cover threads, incoming input,
@@ -173,5 +199,6 @@ selects an implementation or changes the domain model.
 - [Schema guide](schema/README.md) and [older SQL draft](schema/draft.sql)
 
 The Python contract draft uses FastAPI to generate OpenAPI. Its handlers return
-501; application services, workers, scheduler and mutation repositories remain unimplemented.
+501; application services, workers and the scheduler remain unimplemented.
+Repository writes currently cover command acceptance, job/task creation and task attempts.
 The wider contracts above still distinguish accepted decisions from proposals.

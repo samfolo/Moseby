@@ -6,6 +6,8 @@ from sqlalchemy import Engine, create_engine, event
 from sqlalchemy.engine import URL, Connection
 from sqlalchemy.pool import ConnectionPoolEntry
 
+from ._transaction_state import WRITE_TRANSACTION_MARKER, WRITE_TRANSACTION_OPTION
+
 
 def create_database_engine(url: str | URL, *, timeout: float = 5.0) -> Engine:
     engine = create_engine(url, connect_args={"timeout": timeout})
@@ -26,7 +28,10 @@ def create_database_engine(url: str | URL, *, timeout: float = 5.0) -> Engine:
 
     @event.listens_for(engine, "begin")
     def begin(connection: Connection) -> None:
-        immediate = connection.get_execution_options().get("moseby_write", False)
+        immediate = connection.get_execution_options().get(
+            WRITE_TRANSACTION_OPTION, False
+        )
         connection.exec_driver_sql("BEGIN IMMEDIATE" if immediate else "BEGIN")
+        connection.info[WRITE_TRANSACTION_MARKER] = immediate
 
     return engine

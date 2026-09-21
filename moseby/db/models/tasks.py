@@ -1,5 +1,7 @@
 from typing import Literal
 
+from pydantic import Field
+
 from moseby.identifiers import JobId, TaskId
 from moseby.runtime.enums import TaskStatus
 from moseby.runtime.models.common import JsonObject
@@ -32,3 +34,15 @@ class TaskFilters(Filters):
     job_id: JobId
     ids: IdFilter[TaskId] | None = None
     statuses: IdFilter[StoredEnum[TaskStatus]] | None = None
+
+
+class NewTask(Row):
+    """One named piece of work; retries retain this identity and input."""
+
+    id: TaskId
+    job_id: JobId
+    step_key: str = Field(min_length=1)
+    handler: str = Field(min_length=1)
+    input: JsonObject
+    available_at: int
+    format_version: Literal[1] = 1

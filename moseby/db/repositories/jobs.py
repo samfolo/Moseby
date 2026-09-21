@@ -1,16 +1,22 @@
-"""Read saved jobs through the acting staff member's job scope."""
+"""Create and read jobs within the acting staff member's scope."""
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, Select, select
+from sqlalchemy import Connection, Select, insert, select
 
 from moseby.identifiers import JobId, RunId, StaffMemberId, ThreadId, ThreadRecordId
+from moseby.runtime.enums import JobStatus
 
-from ..models.jobs import JobFilters, JobRow
+from ..errors import RepositoryInvariantError, WriteConflict
+from ..models.jobs import JobFilters, JobRow, NewJob
 from ..pagination import Page, PageRequest, read_page
-from ..tables import jobs
+from ..tables import jobs, threads
 from ._queries import unique_ids
+from ._thread_queries import owned_thread_ids
 from ._work_queries import job_scope
+from ._writes import encode_canonical_json, require_write_transaction
+
+# Reads
 
 
 def _select(actor_staff_member_id: StaffMemberId) -> Select:
@@ -203,3 +209,40 @@ def search(
             "filters": filters.model_dump_json(),
         },
     )
+
+
+# Writes
+
+
+def create(connection: Connection, values: NewJob, *, now: int) -> JobRow:
+    """Create a queued job for an accepted command on the caller's transaction.
+
+    The caller uses the ledger's acceptance result to skip replayed commands.
+    The database rejects duplicate command keys and invalid source/run links.
+    """
+    require_write_transaction(connection)
+    encode_canonical_json(values.input)
+    actor = values.request_key.actor_staff_member_id
+    if (
+        values.thread_id is not None
+        and connection.execute(
+            owned_thread_ids(actor).where(threads.c.id == values.thread_id)
+        ).scalar_one_or_none()
+        is None
+    ):
+        raise WriteConflict("The job's thread is missing or inaccessible")
+    fields = values.model_dump(exclude={"request_key", "input"})
+    connection.execute(
+        insert(jobs).values(
+            **fields,
+            **values.request_key.model_dump(),
+            input_json=values.input,
+            created_at=now,
+            updated_at=now,
+            status=JobStatus.QUEUED.value,
+        )
+    )
+    saved = find_by_id(connection, values.id, actor_staff_member_id=actor)
+    if saved is None:
+        raise RepositoryInvariantError("The created job could not be read back")
+    return saved

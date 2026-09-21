@@ -4,6 +4,7 @@ import os
 
 from alembic import context
 
+from moseby.db._transaction_state import WRITE_TRANSACTION_OPTION
 from moseby.db.connection import create_database_engine
 
 config = context.config
@@ -33,7 +34,9 @@ else:
     engine = create_database_engine(url)
     try:
         with engine.connect() as connection:
-            connection = connection.execution_options(moseby_write=True)
+            connection = connection.execution_options(
+                **{WRITE_TRANSACTION_OPTION: True}
+            )
             configure(connection)
     finally:
         engine.dispose()

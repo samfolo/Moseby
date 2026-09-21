@@ -1,16 +1,24 @@
-"""Read saved tasks through the acting staff member's job scope."""
+"""Create tasks and save attempts under their current worker claims."""
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, Select, select
+from sqlalchemy import Connection, Select, delete, insert, null, select, update
 
 from moseby.identifiers import JobId, StaffMemberId, TaskId
+from moseby.runtime.enums import TaskStatus
+from moseby.runtime.models.common import JsonObject
 
-from ..models.tasks import TaskFilters, TaskRow
+from ..errors import ClaimLost, RepositoryInvariantError, WriteConflict
+from ..models.tasks import NewTask, TaskFilters, TaskRow
 from ..pagination import Page, PageRequest, read_page
-from ..tables import tasks
+from ..tables import jobs, tasks
+from ..tables import task_claims as claims_table
+from . import task_claims
 from ._queries import unique_ids
-from ._work_queries import owned_job_ids
+from ._work_queries import claimed_task_ids, owned_job_ids, unfinished_job_ids
+from ._writes import encode_canonical_json, require_write_transaction
+
+# Reads
 
 
 def _select(actor_staff_member_id: StaffMemberId) -> Select:
@@ -148,3 +156,189 @@ def search(
             "filters": filters.model_dump_json(),
         },
     )
+
+
+# Writes
+
+
+def create(
+    connection: Connection,
+    values: NewTask,
+    *,
+    actor_staff_member_id: StaffMemberId,
+    now: int,
+) -> TaskRow:
+    """Add a ready task to an unfinished owned job on the caller's transaction.
+
+    The database rejects duplicate IDs or step keys. Creating initial tasks and
+    accepting their job belong to one transaction; no method commits on its own.
+    """
+    require_write_transaction(connection)
+    encode_canonical_json(values.input)
+    if (
+        connection.execute(
+            unfinished_job_ids(actor_staff_member_id).where(
+                jobs.c.id == values.job_id,
+                jobs.c.updated_at <= now,
+            )
+        ).scalar_one_or_none()
+        is None
+    ):
+        raise WriteConflict(
+            "The parent job is missing, inaccessible or already finished"
+        )
+    fields = values.model_dump(exclude={"input"})
+    connection.execute(
+        insert(tasks).values(
+            **fields,
+            input_json=values.input,
+            created_at=now,
+            updated_at=now,
+            status=TaskStatus.READY.value,
+            attempt_count=0,
+        )
+    )
+    row = find_by_id(connection, values.id, actor_staff_member_id=actor_staff_member_id)
+    if row is None:
+        raise RepositoryInvariantError("The saved task could not be read back")
+    return row
+
+
+def _finish(
+    connection: Connection,
+    task_id: TaskId,
+    token: str,
+    *,
+    actor_staff_member_id: StaffMemberId,
+    now: int,
+    status: TaskStatus,
+    result: JsonObject | None,
+    error: JsonObject | None,
+) -> TaskRow:
+    """Save one terminal attempt outcome while the worker still owns its claim."""
+    require_write_transaction(connection)
+    if result is not None:
+        encode_canonical_json(result)
+    if error is not None:
+        encode_canonical_json(error)
+    changed = connection.execute(
+        update(tasks)
+        .where(
+            tasks.c.id == task_id,
+            tasks.c.id.in_(claimed_task_ids(actor_staff_member_id, token, now)),
+        )
+        .values(
+            status=status.value,
+            result_json=result if result is not None else null(),
+            error_json=error if error is not None else null(),
+            finished_at=now,
+            updated_at=now,
+        )
+    ).rowcount
+    if changed != 1:
+        raise ClaimLost("The task no longer has this live claim")
+    row = find_by_id(connection, task_id, actor_staff_member_id=actor_staff_member_id)
+    if row is None:
+        raise RepositoryInvariantError("The saved task could not be read back")
+    return row
+
+
+def succeed(
+    connection: Connection,
+    task_id: TaskId,
+    token: str,
+    result: JsonObject,
+    *,
+    actor_staff_member_id: StaffMemberId,
+    now: int,
+) -> TaskRow:
+    """Save this task's successful result, rejecting expired or replaced claims.
+
+    The caller combines domain changes and parent-job progress in the same
+    guarded transaction. Finishing a task alone does not finish or resume its job.
+    """
+    return _finish(
+        connection,
+        task_id,
+        token,
+        actor_staff_member_id=actor_staff_member_id,
+        now=now,
+        status=TaskStatus.SUCCEEDED,
+        result=result,
+        error=None,
+    )
+
+
+def fail(
+    connection: Connection,
+    task_id: TaskId,
+    token: str,
+    error: JsonObject,
+    *,
+    actor_staff_member_id: StaffMemberId,
+    now: int,
+) -> TaskRow:
+    """Keep the final error when this attempt should not be retried.
+
+    The task becomes terminal. The job handler decides what this failure means
+    for its other tasks and saves that decision on the same transaction.
+    """
+    return _finish(
+        connection,
+        task_id,
+        token,
+        actor_staff_member_id=actor_staff_member_id,
+        now=now,
+        status=TaskStatus.FAILED,
+        result=None,
+        error=error,
+    )
+
+
+def retry(
+    connection: Connection,
+    task_id: TaskId,
+    token: str,
+    error: JsonObject,
+    *,
+    actor_staff_member_id: StaffMemberId,
+    now: int,
+    available_at: int,
+) -> TaskRow:
+    """Release this claim and make the same task ready at the chosen retry time.
+
+    Keep its input, first start time and last error. The next successful claim
+    increments the attempt count; the caller chooses backoff and retry limits.
+    """
+    require_write_transaction(connection)
+    encode_canonical_json(error)
+    if available_at < now:
+        raise ValueError("The retry time must be at or after now")
+    with task_claims.guard(
+        connection, task_id, token, actor_staff_member_id=actor_staff_member_id, now=now
+    ):
+        changed = connection.execute(
+            update(tasks)
+            .where(
+                tasks.c.id == task_id,
+                tasks.c.id.in_(claimed_task_ids(actor_staff_member_id, token, now)),
+            )
+            .values(
+                status=TaskStatus.READY.value,
+                error_json=error,
+                result_json=null(),
+                available_at=available_at,
+                updated_at=now,
+            )
+        ).rowcount
+        if changed != 1:
+            raise ClaimLost("The task no longer has this live claim")
+        connection.execute(
+            delete(claims_table).where(
+                claims_table.c.task_id == task_id, claims_table.c.token == token
+            )
+        )
+    row = find_by_id(connection, task_id, actor_staff_member_id=actor_staff_member_id)
+    if row is None:
+        raise RepositoryInvariantError("The saved task could not be read back")
+    return row
