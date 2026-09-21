@@ -113,6 +113,14 @@ Punctuation separates words, and query operators are treated as ordinary words.
 Results keep the same creation-time order and hotel scope. The small activity-type catalogue is returned
 in full, ordered by code; ordinary resource lists use the shared paginator.
 
+Thread, run, history and incoming-input repositories require the thread creator's
+staff member ID. Services also check current permissions before exposing those
+rows. History and input pages follow their saved sequence, using shared cursor
+handling in `pagination.py`. History reads include internal events; services
+select conversation kinds for public responses and validate payloads by kind and
+format version. A waiting run remains active, and a pending steer remains visible
+after its target run ends. These reads neither deliver input nor advance a run.
+
 `make test-db` exercises the reads against freshly migrated, seeded databases,
 including cross-hotel lookups, cursor boundaries, cancellation and more than 100
 keys or activity reservations.

@@ -16,6 +16,12 @@ from moseby.domain.enums import (
     RoomTier,
     StaffRole,
 )
+from moseby.runtime.enums import RunStatus
+from moseby.runtime.models.incoming_thread_records import (
+    IncomingThreadRecordDeliveryMode,
+    IncomingThreadRecordKind,
+)
+from moseby.runtime.models.thread_records import ThreadRecordKind
 
 
 class DomainEnumTests(StayDatabaseTestCase):
@@ -32,6 +38,10 @@ class DomainEnumTests(StayDatabaseTestCase):
                 ("party_details", GuestReferenceStatus),
                 ("rooms", RoomTier),
                 ("staff_members", StaffRole),
+                ("runs", RunStatus),
+                ("thread_records", ThreadRecordKind),
+                ("incoming_thread_records", IncomingThreadRecordKind),
+                ("incoming_thread_records", IncomingThreadRecordDeliveryMode),
             ):
                 with self.subTest(table=table):
                     constraints = " ".join(

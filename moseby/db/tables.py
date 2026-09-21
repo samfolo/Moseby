@@ -223,3 +223,70 @@ activity_reservation_revisions = Table(
     Column("price_unit", Text),
     Column("created_at", Integer),
 )
+
+threads = Table(
+    "threads",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("creator_staff_member_id", Text),
+    Column("permissions_json", JSON),
+    Column("title", Text),
+    Column("archived_at", Integer),
+    Column("projection_sequence", Integer),
+    Column("projection_format_version", Integer),
+    Column("projection_json", JSON),
+)
+
+runs = Table(
+    "runs",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("thread_id", Text),
+    Column("status", Text),
+    Column("wake_at", Integer),
+    Column("cancel_requested_at", Integer),
+    Column("cancel_requested_by_staff_member_id", Text),
+    Column("recovery_attempts", Integer),
+    Column("finished_at", Integer),
+)
+
+thread_records = Table(
+    "thread_records",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("thread_id", Text),
+    Column("sequence", Integer),
+    Column("kind", Text),
+    Column("format_version", Integer),
+    Column("run_id", Text),
+    Column("actor_staff_member_id", Text),
+    Column("source_record_id", Text),
+    Column("tool_call_id", Text),
+    Column("payload_json", JSON),
+)
+
+incoming_thread_records = Table(
+    "incoming_thread_records",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("thread_id", Text),
+    Column("sequence", Integer),
+    Column("kind", Text),
+    Column("delivery_mode", Text),
+    Column("target_run_id", Text),
+    Column("actor_staff_member_id", Text),
+    Column("request_id", Text),
+    Column("format_version", Integer),
+    Column("payload_json", JSON),
+    Column("record_id", Text),
+    Column("appended_at", Integer),
+    Column("cancelled_at", Integer),
+    Column("cancelled_by_staff_member_id", Text),
+)

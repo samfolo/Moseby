@@ -1,20 +1,11 @@
-from enum import StrEnum
 from typing import Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
 from moseby.identifiers import RunId, StaffMemberId, ThreadId
+from moseby.runtime.enums import RunStatus as RunStatus
 
 from .common import Contract, PageRequest, Request
-
-
-class RunStatus(StrEnum):
-    QUEUED = "RUN_STATUS_QUEUED"
-    RUNNING = "RUN_STATUS_RUNNING"
-    WAITING = "RUN_STATUS_WAITING"
-    COMPLETED = "RUN_STATUS_COMPLETED"
-    FAILED = "RUN_STATUS_FAILED"
-    CANCELLED = "RUN_STATUS_CANCELLED"
 
 
 class Run(Contract):
