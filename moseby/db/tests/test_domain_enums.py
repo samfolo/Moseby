@@ -20,6 +20,7 @@ from moseby.domain.enums import (
 
 class DomainEnumTests(StayDatabaseTestCase):
     def test_shared_choices_match_database_constraints(self):
+        """Shared enum values must agree with the choices allowed by the database."""
         with self.engine.connect() as connection:
             inspector = inspect(connection)
             for table, enum in (
@@ -44,6 +45,7 @@ class DomainEnumTests(StayDatabaseTestCase):
                     self.assertEqual(stored, {member.value for member in enum})
 
     def test_row_parses_stored_enum_strings_without_weakening_other_fields(self):
+        """Enum strings parse as members while timestamp fields remain strict."""
         values = dict(
             id=identifier("bed"),
             room_id=identifier("room"),

@@ -70,6 +70,7 @@ def incoming(**changes):
 
 class RuntimeModelTests(unittest.TestCase):
     def test_every_record_kind_round_trips_through_json(self):
+        """Each supported record keeps its value after JSON storage and parsing."""
         examples = [
             record(
                 "THREAD_CREATED",
@@ -113,6 +114,7 @@ class RuntimeModelTests(unittest.TestCase):
                 )
 
     def test_unknown_kind_version_and_wrong_payload_fail(self):
+        """Unknown formats and malformed record data fail validation."""
         example = record("USER_MESSAGE", {"text": "Hello"})
         for changes in (
             {"kind": "USER_MESSAGE"},
@@ -129,6 +131,7 @@ class RuntimeModelTests(unittest.TestCase):
                 thread_record_adapter.validate_python(example | changes)
 
     def test_assistant_messages_have_content_and_unique_calls(self):
+        """Messages need content, distinct call IDs and JSON-safe arguments."""
         call = {"id": "call-1", "name": "search_rooms", "arguments": {}}
         for payload in (
             {},
@@ -148,6 +151,7 @@ class RuntimeModelTests(unittest.TestCase):
         )
 
     def test_tool_results_match_the_actual_source_call(self):
+        """A tool result must answer a real earlier call in the same thread and run."""
         source = AssistantMessageRecord.model_validate(
             record(
                 "ASSISTANT_MESSAGE",
@@ -189,6 +193,7 @@ class RuntimeModelTests(unittest.TestCase):
                 )
 
     def test_result_outcomes_require_the_matching_fields(self):
+        """Each tool outcome needs its own result, error or cancellation fields."""
         base = record(
             "TOOL_RESULT",
             {},
@@ -211,6 +216,7 @@ class RuntimeModelTests(unittest.TestCase):
                 thread_record_adapter.validate_python(base | {"payload": payload})
 
     def test_classifier_calls_require_resolution_and_a_run(self):
+        """Classifier-issued tool calls require a resolved decision linked to a run."""
         payload = dict(
             inference_request_id=identifier("inference_request"),
             status="CLASSIFIER_DECISION_STATUS_RESOLVED",
@@ -244,6 +250,7 @@ class RuntimeModelTests(unittest.TestCase):
             )
 
     def test_incoming_delivery_and_acceptance_are_separate(self):
+        """Steering and append receipts require complete, separate delivery details."""
         queued = incoming_thread_record_adapter.validate_python(incoming())
         self.assertIsNone(queued.appended_at)
         self.assertIsNone(queued.record_id)
@@ -272,6 +279,7 @@ class RuntimeModelTests(unittest.TestCase):
                 incoming_thread_record_adapter.validate_python(incoming(**changes))
 
     def test_scheduled_input_uses_occurrence_identity_and_polite_delivery(self):
+        """Scheduled input identifies its occurrence and uses polite delivery."""
         scheduled = incoming(
             kind="INCOMING_THREAD_RECORD_KIND_SCHEDULED_INPUT",
             request_id=None,
@@ -293,6 +301,7 @@ class RuntimeModelTests(unittest.TestCase):
             )
 
     def test_pending_user_input_can_be_cancelled(self):
+        """Polite and assertive input can be withdrawn with a staff receipt."""
         cancellation = dict(
             updated_at=LATER,
             cancelled_at=LATER,
@@ -332,6 +341,7 @@ class RuntimeModelTests(unittest.TestCase):
             )
 
     def test_cancellation_requires_an_actor_and_unappended_user_input(self):
+        """Cancelling input requires a pending user message, staff ID and valid time."""
         cancelled = incoming(
             updated_at=LATER,
             cancelled_at=LATER,
@@ -352,6 +362,7 @@ class RuntimeModelTests(unittest.TestCase):
                 incoming_thread_record_adapter.validate_python(cancelled | changes)
 
     def test_public_requests_require_idempotency_but_responses_omit_it(self):
+        """Public requests require request IDs; responses omit internal details."""
         request = CreateIncomingThreadRecordRequest.model_validate(
             {
                 "request_id": "request-1",
@@ -378,6 +389,7 @@ class RuntimeModelTests(unittest.TestCase):
             )
 
     def test_run_state_matches_completion_and_wake_fields(self):
+        """Run status must agree with wake, completion and cancellation details."""
         run = dict(
             id=identifier("run"),
             thread_id=identifier("thread"),
@@ -410,6 +422,7 @@ class RuntimeModelTests(unittest.TestCase):
         )
 
     def test_schemas_expose_tagged_payloads_and_reject_extra_fields(self):
+        """Record schemas select payloads by kind and reject unrecognised fields."""
         schema = thread_record_adapter.json_schema()
         self.assertEqual(schema["discriminator"]["propertyName"], "kind")
         self.assertEqual(len(schema["oneOf"]), 7)

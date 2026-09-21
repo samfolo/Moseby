@@ -180,6 +180,7 @@ class RuntimeMigrationTests(unittest.TestCase):
         )
 
     def test_upgrade_and_populated_downgrade_preserve_domain(self):
+        """Runtime migrations can be removed and reapplied, preserving domain rows."""
         with transaction(self.engine, write=True) as connection:
             self.record(connection, 3, kind="THREAD_RECORD_KIND_ASSISTANT_MESSAGE")
             self.record(
@@ -222,6 +223,7 @@ class RuntimeMigrationTests(unittest.TestCase):
         self.migrate("head")
 
     def test_history_is_ordered_immutable_and_stays_in_its_thread(self):
+        """Thread history rejects gaps, cross-thread links and changes to saved rows."""
         with transaction(self.engine, write=True) as connection:
             self.invalid(connection, lambda: self.record(connection, 3, sequence=4))
             self.invalid(
@@ -255,6 +257,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_received_appended_and_included_are_distinct(self):
+        """Multiple inference requests can reuse one message without copying it."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -340,6 +343,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_wait_keeps_run_slot_and_late_result_does_not_revive_cancelled_run(self):
+        """Waiting keeps the run slot; late results cannot restart a cancelled run."""
         with transaction(self.engine, write=True) as connection:
             self.update(
                 connection,
@@ -402,6 +406,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_incoming_delivery_mode_can_change_until_appended(self):
+        """Pending input can become a steer; delivery settings freeze on append."""
         with transaction(self.engine, write=True) as connection:
             identity = identifier("incoming_thread_record")
             self.insert(
@@ -465,6 +470,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_pending_input_cancellation_is_terminal_and_retained(self):
+        """Withdrawn input retains a permanent receipt and cannot be changed."""
         identity = identifier("incoming_thread_record")
         cancellation = dict(
             cancelled_at=2,
@@ -526,6 +532,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_cancellation_and_append_cannot_both_win(self):
+        """Delivery and cancellation cannot both succeed or leave partial history."""
         with transaction(self.engine, write=True) as connection:
             self.incoming(connection)
             self.incoming(connection, 2)
@@ -583,6 +590,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_input_cancellation_migration_preserves_pending_messages(self):
+        """Adding cancellation fields preserves existing pending messages."""
         self.migrate("0002_runtime", downgrade=True)
         with transaction(self.engine, write=True) as connection:
             self.incoming(connection)
@@ -599,6 +607,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_downgrade_cannot_turn_cancelled_input_back_into_pending_input(self):
+        """Downgrade is blocked when it would make withdrawn messages pending again."""
         with transaction(self.engine, write=True) as connection:
             self.incoming(
                 connection,
@@ -616,6 +625,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_creation_and_update_timestamps_are_required_on_mutable_rows(self):
+        """Mutable rows require timestamps, with updates no earlier than creation."""
         mutable = (
             "hotels",
             "staff_members",
@@ -667,6 +677,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_jobs_tasks_claims_and_completion_identity(self):
+        """Duplicate steps, simultaneous claims and duplicate completions fail."""
         with transaction(self.engine, write=True) as connection:
             self.record(connection, 3, kind="THREAD_RECORD_KIND_ASSISTANT_MESSAGE")
             self.job(
@@ -760,6 +771,7 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_schedule_edits_do_not_rewrite_accepted_work(self):
+        """Schedule edits preserve occurrences and cannot repeat a saved due time."""
         with transaction(self.engine, write=True) as connection:
             self.job(connection)
             self.insert(
@@ -817,6 +829,8 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
 
     def test_publication_is_atomic_and_replay_keeps_event_identity(self):
+        """Publication rolls back together; retrying cannot duplicate a saved event."""
+
         def notification(connection):
             self.insert(
                 connection,

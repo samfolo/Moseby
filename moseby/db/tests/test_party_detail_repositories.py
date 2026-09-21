@@ -40,6 +40,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
                 )
 
     def test_json_references_are_typed_and_classification_outcomes_stay_distinct(self):
+        """Reads decode saved guest IDs and preserve each classification outcome."""
         with transaction(self.engine) as connection:
             rows = party_details.find_all_by_party_id(
                 connection, identifier("party"), hotel_id=identifier("hotel")
@@ -60,6 +61,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
             self.assertTrue(all(row.referenced_guest_ids == [] for row in rows[1:]))
 
     def test_single_and_filtered_reads_do_not_reveal_another_hotels_notes(self):
+        """Direct and filtered lookups never return another hotel's party notes."""
         with transaction(self.engine) as connection:
             scope = dict(hotel_id=identifier("hotel"))
             for number in (2, 999):
@@ -87,6 +89,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_guest_filters_match_exact_saved_references_without_duplicating_notes(self):
+        """Matching several referenced guests still returns each note only once."""
         with transaction(self.engine) as connection:
             result = party_details.search(
                 connection,
@@ -115,6 +118,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
                 )
 
     def test_keywords_ignore_case_and_accents_and_intersect_with_references(self):
+        """Keyword rules and guest filters combine without interpreting operators."""
         with transaction(self.engine) as connection:
             for text, expected in (
                 ("50%", [1]),
@@ -152,6 +156,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
             self.assertEqual(result.items, [])
 
     def test_cursor_continues_tied_notes_and_rejects_changed_filters(self):
+        """Tied notes page by ID; changing hotel or text invalidates the cursor."""
         with transaction(self.engine) as connection:
             first = party_details.find_all_by_party_id(
                 connection,
@@ -182,6 +187,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
                     )
 
     def test_parent_cancellation_preserves_the_evidence(self):
+        """Cancelling a stay keeps its notes and saved guest references readable."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -199,6 +205,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_keyword_filter_precedes_pagination_and_keeps_hotel_scope(self):
+        """Only keyword matches within the caller's hotel reach the result page."""
         with transaction(self.engine) as connection:
             filters = PartyDetailFilters(
                 party_ids=[identifier("party", n) for n in (1, 2)], text="DAN"
@@ -229,6 +236,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
             self.assertEqual(hidden.items, [])
 
     def test_text_index_tracks_edits_deletes_and_transaction_rollback(self):
+        """Search follows committed edits and deletes while respecting rollback."""
         table = self.metadata.tables["party_details"]
         with transaction(self.engine, write=True) as connection:
             connection.execute(
@@ -265,6 +273,7 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
                 )
 
     def test_migration_indexes_existing_notes_and_downgrade_preserves_them(self):
+        """The search migration indexes existing notes and retains them on downgrade."""
         with transaction(self.engine, write=True) as connection:
             config = Config(str(ROOT / "alembic.ini"))
             config.attributes["connection"] = connection

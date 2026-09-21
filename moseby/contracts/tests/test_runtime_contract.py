@@ -49,6 +49,8 @@ class RuntimeContractTests(unittest.TestCase):
         return fields
 
     def test_every_schema_reference_resolves(self):
+        """Every OpenAPI reference points to an existing schema."""
+
         def visit(node):
             if isinstance(node, dict):
                 if "$ref" in node:
@@ -62,6 +64,7 @@ class RuntimeContractTests(unittest.TestCase):
         visit(self.document)
 
     def test_runtime_responses_exclude_internal_request_and_claim_fields(self):
+        """Public responses hide internal request, claim and permission data."""
         for path, operations in self.document["paths"].items():
             for operation in operations.values():
                 if not isinstance(operation, dict) or "Runtime" not in operation.get(
@@ -84,6 +87,7 @@ class RuntimeContractTests(unittest.TestCase):
                             )
 
     def test_routes_declare_capabilities_ownership_and_current_authority(self):
+        """Routes declare ownership and permissions with unique operation IDs."""
         ids = []
         for operations in self.document["paths"].values():
             for operation in operations.values():
@@ -115,6 +119,7 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
 
     def test_query_bodies_and_cancellation_semantics_are_exported(self):
+        """OpenAPI records QUERY bodies and user-only cancellation operations."""
         paths = self.document["paths"]
         for path, request_name in (
             ("/thread-records", "SearchThreadRecordsRequest"),
@@ -135,6 +140,7 @@ class RuntimeContractTests(unittest.TestCase):
         self.assertTrue(paths["/jobs"]["post"]["x-operation-permissions-required"])
 
     def test_thread_queries_require_scope_and_bound_id_batches(self):
+        """Thread searches require a thread ID and batches of 1 to 100 record IDs."""
         payload = {
             "thread_id": identifier("thread"),
             "ids": [identifier("thread_record")],
@@ -152,6 +158,7 @@ class RuntimeContractTests(unittest.TestCase):
             SteerIncomingThreadRecordRequest(request_id="steer-1", payload={})
 
     def test_input_creation_is_top_level_and_requires_a_thread_in_the_payload(self):
+        """Input creation uses a top-level route with a thread ID in the payload."""
         self.assertNotIn(
             "/threads/{id}/incoming-thread-records", self.document["paths"]
         )
@@ -172,6 +179,7 @@ class RuntimeContractTests(unittest.TestCase):
                 )
 
     def test_job_admission_cannot_forge_runtime_links_or_authority(self):
+        """Job callers cannot choose their actor, handler or conversation links."""
         payload = {"operation": "example.search", "input": {"query": "tennis"}}
         CreateJobRequest(request_id="job-1", payload=payload)
         for field, value in (
@@ -185,6 +193,7 @@ class RuntimeContractTests(unittest.TestCase):
                 CreateJobRequest(request_id="job-1", payload=payload | {field: value})
 
     def test_job_completion_and_tool_links_remain_consistent(self):
+        """Job responses reject incomplete runtime links and completion details."""
         job = dict(
             id=identifier("job"),
             actor_staff_member_id=identifier("staff_member"),
@@ -212,6 +221,7 @@ class RuntimeContractTests(unittest.TestCase):
                 Job.model_validate(job | changes)
 
     def test_schedule_timing_and_edits_are_complete(self):
+        """Schedules need a complete timing rule; edits need a matching field mask."""
         due = "2026-09-21T09:00:00Z"
         ScheduleTiming(due_at=due)
         ScheduleTiming(cron_expression="0 9 * * *", cron_dialect="example-parser")
@@ -241,6 +251,7 @@ class RuntimeContractTests(unittest.TestCase):
                 UpdateScheduleRequest.model_validate(request | changes)
 
     def test_notifications_select_one_recipient_and_replay_in_order(self):
+        """Notifications name one recipient; event pages preserve replay order."""
         NotificationRecipient(guest_id=identifier("guest"))
         for recipient in (
             {},

@@ -67,6 +67,7 @@ class CatalogueRepositoryTests(StayDatabaseTestCase):
                 )
 
     def test_hotels_and_staff_are_scoped_while_venues_are_shared(self):
+        """Hotel and staff reads stay scoped; venues use the shared catalogue."""
         with transaction(self.engine) as connection:
             scope = dict(hotel_id=identifier("hotel"))
             hotel = hotels.find_by_id(connection, identifier("hotel"), **scope)
@@ -98,6 +99,7 @@ class CatalogueRepositoryTests(StayDatabaseTestCase):
             self.assertEqual(list(found), [identifier("venue")])
 
     def test_staff_pages_include_unknown_roles_and_reject_other_hotel_cursors(self):
+        """Staff paging includes unknown roles and rejects another hotel's cursor."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -127,6 +129,7 @@ class CatalogueRepositoryTests(StayDatabaseTestCase):
                 )
 
     def test_activity_categories_include_new_rows_and_unknown(self):
+        """Category reads include added and unknown entries without code changes."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -148,6 +151,7 @@ class CatalogueRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_price_reads_distinguish_current_and_exact_versions(self):
+        """New revisions change current prices but leave saved rates readable."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -183,6 +187,7 @@ class CatalogueRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_rooms_include_all_beds_without_multiplying_page_entries(self):
+        """Room pages include every bed using one additional query per page."""
         with transaction(self.engine) as connection:
             statements = []
 
@@ -216,6 +221,7 @@ class CatalogueRepositoryTests(StayDatabaseTestCase):
             self.assertEqual(rest.items[0].label, "Lily")
 
     def test_room_single_and_batch_reads_preserve_scope_and_price_changes(self):
+        """Room lookups respect hotel boundaries and return current prices."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -243,6 +249,7 @@ class CatalogueRepositoryTests(StayDatabaseTestCase):
             self.assertEqual(rooms.find_by_ids(connection, [], **scope), {})
 
     def test_batches_reject_over_the_input_limit(self):
+        """A batch exceeding 100 supplied IDs fails before running its lookup."""
         with transaction(self.engine) as connection:
             for repository, prefix, scope in (
                 (venues, "venue", {}),
@@ -257,6 +264,7 @@ class CatalogueRepositoryTests(StayDatabaseTestCase):
                         repository.find_by_ids(connection, invalid, **scope)
 
     def test_reads_share_the_callers_rollback_boundary(self):
+        """Reads see pending writes that disappear when the caller rolls back."""
         with self.assertRaisesRegex(RuntimeError, "rollback"):
             with transaction(self.engine, write=True) as connection:
                 connection.execute(

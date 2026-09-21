@@ -22,18 +22,19 @@ def identifier(prefix: str, number: int = 1) -> str:
 
 class DomainMigrationTests(unittest.TestCase):
     def setUp(self):
+        """Create a fresh domain schema and clean up even if setup fails."""
         self.directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self.directory.cleanup)
         self.engine = create_database_engine(
             sa.URL.create("sqlite", database=f"{self.directory.name}/test.db"),
             timeout=0.05,
         )
+        self.addCleanup(self.engine.dispose)
         self.config = Config(str(ROOT / "alembic.ini"))
         self.migrate("0001_domain")
         self.metadata = sa.MetaData()
         with self.engine.connect() as connection:
             self.metadata.reflect(connection)
-        self.addCleanup(self.directory.cleanup)
-        self.addCleanup(self.engine.dispose)
 
     def migrate(self, revision, *, downgrade=False):
         with transaction(self.engine, write=True) as connection:
@@ -199,6 +200,7 @@ class DomainMigrationTests(unittest.TestCase):
             action()
 
     def test_upgrade_downgrade_and_reapply(self):
+        """The domain schema can be created, removed and reapplied."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
             inspector = sa.inspect(connection)
@@ -221,6 +223,7 @@ class DomainMigrationTests(unittest.TestCase):
         self.migrate("0001_domain")
 
     def test_transaction_rollback_including_ddl(self):
+        """Rollback removes inserted rows and tables created in the transaction."""
         with self.assertRaisesRegex(RuntimeError, "abort"):
             with transaction(self.engine, write=True) as connection:
                 self.seed(connection)
@@ -238,6 +241,7 @@ class DomainMigrationTests(unittest.TestCase):
             )
 
     def test_failed_migration_rolls_back_all_tables(self):
+        """An aborted migration leaves no new tables or recorded revision."""
         self.migrate("base", downgrade=True)
         with self.assertRaisesRegex(RuntimeError, "abort"):
             with transaction(self.engine, write=True) as connection:
@@ -258,6 +262,7 @@ class DomainMigrationTests(unittest.TestCase):
             )
 
     def test_history_and_terminal_cancellation(self):
+        """Saved history cannot be rewritten, and cancellation cannot be undone."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
             self.invalid(connection, lambda: self.room_revision(connection, 3))
@@ -305,6 +310,7 @@ class DomainMigrationTests(unittest.TestCase):
             )
 
     def test_cross_hotel_and_guest_party_references(self):
+        """Invalid links between hotels, bookings, parties and guests are rejected."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
             self.invalid(
@@ -360,6 +366,7 @@ class DomainMigrationTests(unittest.TestCase):
             )
 
     def test_key_dates_follow_revision_and_revocation_is_permanent(self):
+        """Keys follow revised stay dates, but revoked keys stay unusable."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
             query = sa.text(
@@ -397,6 +404,7 @@ class DomainMigrationTests(unittest.TestCase):
             )
 
     def test_parent_cancellation_does_not_rewrite_key_or_activity_history(self):
+        """Booking cancellation removes access while preserving child records."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
             self.insert(
@@ -420,6 +428,7 @@ class DomainMigrationTests(unittest.TestCase):
             )
 
     def test_party_reference_membership_and_classification(self):
+        """Only resolved notes may reference guests, all distinct party members."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
 
@@ -450,6 +459,7 @@ class DomainMigrationTests(unittest.TestCase):
             detail([identifier("guest")])
 
     def test_activity_types_can_be_added_without_a_migration(self):
+        """A new catalogue row makes an activity type usable without a migration."""
         from pydantic import TypeAdapter, ValidationError
 
         from moseby.contracts.activities import (
@@ -507,6 +517,7 @@ class DomainMigrationTests(unittest.TestCase):
         self.migrate("0001_domain")
 
     def test_row_checks_and_known_enum_values(self):
+        """Writes reject invalid dates, reasons, IDs, prices and enum values."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
             self.invalid(
@@ -575,6 +586,7 @@ class DomainMigrationTests(unittest.TestCase):
             )
 
     def test_current_views_return_one_latest_revision_per_parent(self):
+        """Each current-state view returns only the latest revision of each item."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
             self.insert(connection, "prices", id=identifier("price", 2), created_at=0)
@@ -631,6 +643,7 @@ class DomainMigrationTests(unittest.TestCase):
                 self.assertEqual({row[parent]: dict(row) for row in actual}, expected)
 
     def test_guest_reference_delete_check_preserves_referenced_guests(self):
+        """Party evidence prevents deletion of guests it references."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)
             for guest, party in ((3, 1), (4, 2)):
@@ -670,6 +683,7 @@ class DomainMigrationTests(unittest.TestCase):
             )
 
     def test_second_writer_cannot_read_then_reserve_under_the_same_write_lock(self):
+        """A second writer cannot enter while the first holds the write lock."""
         with transaction(self.engine, write=True) as first:
             self.assertEqual(
                 first.exec_driver_sql("PRAGMA foreign_keys").scalar_one(), 1

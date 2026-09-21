@@ -70,6 +70,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
         self.insert(connection, "activity_reservation_revisions", **(values | changes))
 
     def test_catalogue_counts_every_hotel_but_itineraries_are_private(self):
+        """Activity totals span hotels; reservation reads stay private to each hotel."""
         with transaction(self.engine) as connection:
             event = activities.find_by_id(connection, identifier("activity"))
             self.assertIsInstance(event, ActivityRow)
@@ -107,6 +108,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
                 )
 
     def test_latest_revision_counts_once_and_keeps_the_agreed_rate(self):
+        """Revised reservations count once and retain the agreed price version."""
         with transaction(self.engine, write=True) as connection:
             self.revise_reservation(connection, 1, 2)
             self.insert(
@@ -135,6 +137,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_cancellation_filters_intersect_and_release_capacity(self):
+        """Cancelled places are released and excluded from effective-only searches."""
         with transaction(self.engine, write=True) as connection:
             self.revise_reservation(
                 connection, 1, 2, cancelled=1, cancellation_reason="Changed plans"
@@ -171,6 +174,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_booking_cancellation_releases_places_without_rewriting_reservations(self):
+        """Booking cancellation releases places without rewriting reservations."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -196,6 +200,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_completed_bookings_and_past_events_keep_their_itinerary(self):
+        """Completing a stay or passing an event's end does not erase its itinerary."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -222,6 +227,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_activity_availability_handles_full_empty_and_unlimited_capacity(self):
+        """Availability searches distinguish full, empty and unlimited activities."""
         with transaction(self.engine) as connection:
             for needed, expected in ((1, [1, 2]), (2, [2]), (1000, [2])):
                 result = activities.search(
@@ -237,6 +243,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
             self.assertEqual(len(activities.find_all(connection).items), 3)
 
     def test_filters_match_any_id_in_a_list_and_intersect_across_lists(self):
+        """IDs within a filter are alternatives; different filters must all match."""
         with transaction(self.engine, write=True) as connection:
             self.add_guest(connection, 3)
             self.reserve(connection, 3, guest=3, activity=2)
@@ -269,6 +276,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_date_filters_exclude_touching_endpoints_for_both_resources(self):
+        """Date searches include overlaps and exclude merely touching intervals."""
         with transaction(self.engine) as connection:
             for lower, upper, matches in (
                 (NOW - 10, NOW, False),
@@ -289,6 +297,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
                 self.assertEqual(bool(reservations.items), matches)
 
     def test_pagination_uses_equivalent_filters_and_rejects_changed_scope(self):
+        """Cursors accept equivalent lists but reject changed filters or hotel scope."""
         with transaction(self.engine, write=True) as connection:
             self.reserve(connection, 3, activity=2)
             first = activity_reservations.search(
@@ -325,6 +334,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
                 )
 
     def test_capacity_count_is_complete_even_when_the_itinerary_is_paginated(self):
+        """Capacity counts include reservations beyond the current result page."""
         with transaction(self.engine, write=True) as connection:
             for number in range(3, 105):
                 self.add_guest(connection, number)
@@ -351,6 +361,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
             )
 
     def test_missing_records_and_bounded_batches(self):
+        """Missing IDs yield no records, and batches enforce their input limit."""
         with transaction(self.engine) as connection:
             self.assertIsNone(
                 activities.find_by_id(connection, identifier("activity", 999))
@@ -377,6 +388,7 @@ class ActivityRepositoryTests(StayDatabaseTestCase):
                 activities.find_by_ids(connection, [identifier("activity")] * 101)
 
     def test_invalid_filters_fail_before_querying(self):
+        """Invalid search values fail validation before a repository query runs."""
         for values in ([], [identifier("activity")] * 101, [identifier("guest")]):
             with self.assertRaises(ValidationError):
                 ActivityFilters(ids=values)

@@ -61,6 +61,7 @@ class RoomSearchTests(StayDatabaseTestCase):
         ]
 
     def test_combined_filters_run_before_limit_and_continue_matching_rooms(self):
+        """Filters apply before paging, so each page contains matching rooms."""
         filters = RoomFilters(
             tiers=["ROOM_TIER_VIP"],
             nightly_amount=AmountRange(
@@ -87,6 +88,7 @@ class RoomSearchTests(StayDatabaseTestCase):
             self.assertIsNone(rest.next_cursor)
 
     def test_prices_use_current_revision_currency_and_inclusive_bounds(self):
+        """Price filters use current rates, matching currency and inclusive bounds."""
         with transaction(self.engine, write=True) as connection:
             exact = AmountRange(currency="GBP", min_value=30_000, max_value=30_000)
             self.assertEqual(
@@ -114,6 +116,7 @@ class RoomSearchTests(StayDatabaseTestCase):
             )
 
     def test_bed_types_require_every_type_and_counts_count_actual_beds(self):
+        """Rooms must contain every requested bed type and meet the bed count."""
         with transaction(self.engine) as connection:
             self.assertEqual(
                 self.search_ids(
@@ -146,6 +149,7 @@ class RoomSearchTests(StayDatabaseTestCase):
             )
 
     def test_request_hotel_ids_only_narrow_the_trusted_scope(self):
+        """Requested hotel IDs cannot widen the caller's permitted hotel scope."""
         with transaction(self.engine) as connection:
             self.assertEqual(
                 self.search_ids(
@@ -164,6 +168,7 @@ class RoomSearchTests(StayDatabaseTestCase):
             )
 
     def test_availability_excludes_overlaps_and_allows_touching_endpoints(self):
+        """Overlapping stays block availability; touching endpoints do not."""
         with transaction(self.engine) as connection:
             for lower, upper, available in (
                 (NOW - 10, NOW, True),
@@ -183,6 +188,7 @@ class RoomSearchTests(StayDatabaseTestCase):
             self.assertIn(identifier("room"), self.search_ids(connection))
 
     def test_availability_uses_latest_reservation_dates_and_cancellation(self):
+        """Availability follows the latest reservation dates and cancellation state."""
         with transaction(self.engine, write=True) as connection:
             interval = DateRange(min_date=NOW + 100, max_date=NOW + 150)
             self.assertIn(
@@ -207,6 +213,7 @@ class RoomSearchTests(StayDatabaseTestCase):
             )
 
     def test_cancelled_and_completed_bookings_release_room_capacity(self):
+        """Cancelled and completed bookings release their rooms for future searches."""
         for status in ("BOOKING_STATUS_CANCELLED", "BOOKING_STATUS_COMPLETED"):
             with self.subTest(status=status):
                 with self.engine.connect() as connection:
@@ -235,6 +242,7 @@ class RoomSearchTests(StayDatabaseTestCase):
                         transaction_handle.rollback()
 
     def test_service_status_and_availability_filters_intersect(self):
+        """Availability requires an in-service room even when its calendar is free."""
         with transaction(self.engine) as connection:
             self.assertEqual(
                 self.search_ids(
@@ -265,6 +273,7 @@ class RoomSearchTests(StayDatabaseTestCase):
             )
 
     def test_cursor_binds_all_filters_but_ignores_list_order_and_duplicates(self):
+        """Cursors accept reordered filter IDs but reject changed criteria."""
         with transaction(self.engine) as connection:
             first = rooms.search(
                 connection,
@@ -295,6 +304,7 @@ class RoomSearchTests(StayDatabaseTestCase):
                     )
 
     def test_invalid_ranges_and_unknown_filter_values_fail_before_queries(self):
+        """Invalid ranges and unknown choices fail before a room query is built."""
         for build in (
             lambda: NumberRange(),
             lambda: NumberRange(min_value=3, max_value=2),

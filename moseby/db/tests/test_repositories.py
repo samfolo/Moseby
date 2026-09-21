@@ -22,6 +22,7 @@ from moseby.db.transaction import transaction
 
 class RepositoryTests(StayDatabaseTestCase):
     def test_typed_reads_compose_on_one_connection(self):
+        """Related reads return typed rows using the same caller-owned connection."""
         with transaction(self.engine) as connection:
             booking = bookings.find_by_id(
                 connection, identifier("booking"), hotel_id=identifier("hotel")
@@ -51,6 +52,7 @@ class RepositoryTests(StayDatabaseTestCase):
                 booking.name = "Changed"
 
     def test_scope_applies_to_single_batch_and_relationship_reads(self):
+        """All lookup forms enforce the supplied hotel boundary."""
         with transaction(self.engine) as connection:
             scope = dict(hotel_id=identifier("hotel"))
             for repository, prefix in (
@@ -111,6 +113,7 @@ class RepositoryTests(StayDatabaseTestCase):
             )
 
     def test_batch_lookup_is_bounded_deduplicated_and_scope_filtered(self):
+        """Batches enforce limits, remove repeats and omit missing or hidden IDs."""
         with transaction(self.engine) as connection:
             for repository, prefix in ((bookings, "booking"), (guests, "guest")):
                 ids = [identifier(prefix, n) for n in (1, 1, 2, 999)]
@@ -131,6 +134,7 @@ class RepositoryTests(StayDatabaseTestCase):
                         )
 
     def test_tied_creation_times_use_ids_and_terminal_pages_have_no_cursor(self):
+        """IDs break timestamp ties; the last page has no continuation cursor."""
         with transaction(self.engine, write=True) as connection:
             for number in (5, 3, 4):
                 self.add_guest(connection, number)
@@ -150,6 +154,7 @@ class RepositoryTests(StayDatabaseTestCase):
         self.assertIsNone(cursor)
 
     def test_removal_before_cursor_does_not_skip_and_new_later_rows_are_visible(self):
+        """Paging handles earlier deletions and later inserts without skipping rows."""
         with transaction(self.engine, write=True) as connection:
             for number in (3, 4):
                 self.add_guest(connection, number)
@@ -181,6 +186,7 @@ class RepositoryTests(StayDatabaseTestCase):
         self.assertIsNone(rest.next_cursor)
 
     def test_cursors_reject_other_scopes_filters_and_query_families(self):
+        """A cursor cannot be reused with another hotel, filter or kind of query."""
         with transaction(self.engine, write=True) as connection:
             self.add_guest(connection, 3)
             page = guests.find_all_by_booking_id(
@@ -211,6 +217,7 @@ class RepositoryTests(StayDatabaseTestCase):
                 )
 
     def test_bad_cursor_and_limits_are_rejected(self):
+        """Malformed cursors and invalid page sizes fail validation."""
         for limit in (0, 101, True, "50"):
             with self.assertRaises(ValidationError):
                 PageRequest(limit=limit)
@@ -226,6 +233,7 @@ class RepositoryTests(StayDatabaseTestCase):
                     )
 
     def test_more_than_one_hundred_keys_use_one_flat_cursor(self):
+        """More than 100 keys can be read through successive pages of one flat list."""
         with transaction(self.engine, write=True) as connection:
             for number in range(3, 107):
                 self.insert(
@@ -253,6 +261,7 @@ class RepositoryTests(StayDatabaseTestCase):
         self.assertIsNone(cursor)
 
     def test_latest_revision_keeps_the_agreed_price_and_one_row_per_allocation(self):
+        """Each allocation appears once with its latest revision and agreed rate."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -287,6 +296,7 @@ class RepositoryTests(StayDatabaseTestCase):
             )
 
     def test_key_access_uses_half_open_dates(self):
+        """A room key works from the stay's start up to, but not including, its end."""
         with transaction(self.engine) as connection:
             for now, effective in (
                 (NOW - 1, False),
@@ -303,6 +313,7 @@ class RepositoryTests(StayDatabaseTestCase):
                 self.assertEqual(row.effective, effective)
 
     def test_parent_cancellation_changes_access_without_rewriting_key_receipt(self):
+        """Booking cancellation disables keys while preserving their saved records."""
         with transaction(self.engine, write=True) as connection:
             self.insert(
                 connection,
@@ -332,6 +343,7 @@ class RepositoryTests(StayDatabaseTestCase):
             self.assertIsNone(key.deactivated_at)
 
     def test_revoked_keys_stay_revoked_after_extensions(self):
+        """Extending a stay never restores access through a revoked key."""
         with transaction(self.engine, write=True) as connection:
             connection.execute(
                 tables.room_keys.update()
@@ -349,6 +361,7 @@ class RepositoryTests(StayDatabaseTestCase):
             self.assertEqual(key.deactivation_reason, "Lost")
 
     def test_cancelled_allocation_invalidates_key_with_confirmed_parent(self):
+        """Cancelled room allocations disable keys even with a confirmed booking."""
         with transaction(self.engine, write=True) as connection:
             self.revise_room(
                 connection, 2, cancelled=1, cancellation_reason="Room move"
@@ -372,6 +385,7 @@ class RepositoryTests(StayDatabaseTestCase):
     def test_repositories_use_bound_values_and_leave_transaction_ownership_to_caller(
         self,
     ):
+        """Queries bind supplied values and leave the caller's transaction open."""
         with self.assertRaisesRegex(RuntimeError, "rollback"):
             with transaction(self.engine, write=True) as connection:
                 self.add_guest(connection, 3)
@@ -394,6 +408,7 @@ class RepositoryTests(StayDatabaseTestCase):
             )
 
     def test_query_metadata_matches_migrated_columns(self):
+        """Repository column definitions must match the tables created by migrations."""
         for name, table in tables.metadata.tables.items():
             self.assertEqual(
                 set(table.c.keys()), set(self.metadata.tables[name].c.keys())

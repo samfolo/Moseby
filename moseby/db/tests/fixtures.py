@@ -20,7 +20,10 @@ def identifier(prefix, number=1):
 
 
 class StayDatabaseTestCase(unittest.TestCase):
+    """Give each test its own migrated database with two independent hotel stays."""
+
     def setUp(self):
+        """Create and seed SQLite; close it before removing the temporary directory."""
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.engine = create_database_engine(
@@ -36,6 +39,7 @@ class StayDatabaseTestCase(unittest.TestCase):
             self.seed(connection)
 
     def insert(self, connection, table, **values):
+        """Insert fixture values, supplying timestamps when the test omits them."""
         target = self.metadata.tables[table]
         if "created_at" in target.c:
             values.setdefault("created_at", NOW)
@@ -44,6 +48,7 @@ class StayDatabaseTestCase(unittest.TestCase):
         connection.execute(target.insert().values(**values))
 
     def seed(self, connection):
+        """Give each hotel a booking, party, guest, reserved room and key."""
         self.insert(connection, "prices", id=identifier("price"))
         self.insert(
             connection,
@@ -124,6 +129,7 @@ class StayDatabaseTestCase(unittest.TestCase):
             )
 
     def add_guest(self, connection, number, **changes):
+        """Add a guest to the first party, with any supplied field overrides."""
         values = dict(
             id=identifier("guest", number),
             party_id=identifier("party"),
@@ -134,6 +140,7 @@ class StayDatabaseTestCase(unittest.TestCase):
         self.insert(connection, "guests", **(values | changes))
 
     def revise_room(self, connection, revision, **changes):
+        """Append a revision for the first room reservation with supplied changes."""
         values = dict(
             room_reservation_id=identifier("room_reservation"),
             revision=revision,

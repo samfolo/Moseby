@@ -11,6 +11,7 @@ from moseby.runtime.models.thread_records import ThreadCreatedPayload
 
 class PermissionTests(unittest.TestCase):
     def test_constructor_validates_canonical_names(self):
+        """Permission construction rejects names outside the agreed grammar."""
         for name in (
             "moseby:read",
             "moseby:write",
@@ -55,6 +56,7 @@ class PermissionTests(unittest.TestCase):
                 Permission(name)
 
     def test_validated_permission_is_frozen_and_destructures(self):
+        """Validated permissions expose path and action but cannot be changed."""
         permission = Permission("moseby.rooms.configuration:write")
         self.assertEqual(permission.path, ("moseby", "rooms", "configuration"))
         self.assertEqual(permission.action, PermissionAction.WRITE)
@@ -62,6 +64,7 @@ class PermissionTests(unittest.TestCase):
             permission.root = "moseby:read"
 
     def test_matching_is_directional_and_uses_complete_segments(self):
+        """Grants cover the same path or descendants only, with the same action."""
         required = Permission("moseby.a.b.c:read")
         for name in (
             "moseby.a.b.c:read",
@@ -97,6 +100,7 @@ class PermissionTests(unittest.TestCase):
         )
 
     def test_metadata_resolves_every_ancestor(self):
+        """Route metadata lists every covering scope and rejects unknown permissions."""
         required = Permission("moseby.rooms.configuration:write")
         expected = [
             "moseby.rooms.configuration:write",
@@ -118,6 +122,7 @@ class PermissionTests(unittest.TestCase):
             access("moseby..rooms:read")
 
     def test_thread_snapshots_validate_and_keep_the_string_storage_format(self):
+        """Thread permissions validate as types but remain strings in saved payloads."""
         payload = dict(
             creator_staff_member_id="staff_member_" + "0" * 26,
             permissions=["moseby.guests:read"],
@@ -130,6 +135,7 @@ class PermissionTests(unittest.TestCase):
                 ThreadCreatedPayload.model_validate(payload | {"permissions": names})
 
     def test_narrow_profile_does_not_inherit_room_configuration(self):
+        """Room reads and booking writes do not grant room-configuration access."""
         configuration = Permission("moseby.rooms.configuration:write")
         grants = [Permission("moseby.rooms:read"), Permission("moseby.bookings:write")]
         self.assertFalse(PermissionResolver.allows(grants, configuration))
