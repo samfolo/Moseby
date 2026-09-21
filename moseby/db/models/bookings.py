@@ -1,8 +1,7 @@
-from typing import Literal
-
+from moseby.domain.enums import BookingStatus
 from moseby.identifiers import BookingId, HotelId
 
-from .common import Row
+from .common import Row, StoredEnum
 
 
 class BookingRow(Row):
@@ -14,9 +13,5 @@ class BookingRow(Row):
     created_at: int
     updated_at: int
     revision: int
-    status: Literal[
-        "BOOKING_STATUS_CONFIRMED",
-        "BOOKING_STATUS_CANCELLED",
-        "BOOKING_STATUS_COMPLETED",
-    ]
+    status: StoredEnum[BookingStatus]
     cancellation_reason: str | None

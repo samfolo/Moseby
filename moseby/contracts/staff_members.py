@@ -1,17 +1,9 @@
-from enum import StrEnum
-
 from pydantic import AwareDatetime, Field
 
+from moseby.domain.enums import StaffRole as StaffRole
 from moseby.identifiers import HotelId, StaffMemberId
 
 from .common import Contract
-
-
-class StaffRole(StrEnum):
-    """Initial demo role; unknown grants no permissions."""
-
-    UNKNOWN = "STAFF_ROLE_UNKNOWN"
-    CONCIERGE = "STAFF_ROLE_CONCIERGE"
 
 
 class StaffMember(Contract):

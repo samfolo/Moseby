@@ -1,5 +1,4 @@
-from typing import Literal
-
+from moseby.domain.enums import ActivityPriceUnit
 from moseby.identifiers import (
     ActivityId,
     ActivityReservationId,
@@ -11,7 +10,7 @@ from moseby.identifiers import (
     VenueId,
 )
 
-from .common import Row
+from .common import Row, StoredEnum
 from .filters import DateRange, Filters, IdFilter
 
 
@@ -34,7 +33,7 @@ class ActivityReservationRow(Row):
     effective: bool
     price_id: PriceId
     price_revision: int
-    price_unit: Literal["ACTIVITY_PRICE_UNIT_PER_GUEST"]
+    price_unit: StoredEnum[ActivityPriceUnit]
     amount_minor: int
     currency: str
     created_at: int

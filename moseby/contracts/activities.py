@@ -1,8 +1,8 @@
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import AwareDatetime, Field
 
+from moseby.domain.enums import ActivityPriceUnit as ActivityPriceUnit
 from moseby.identifiers import ActivityId, PriceId, VenueId
 
 from .amounts import NonNegativeAmount
@@ -16,12 +16,6 @@ type ActivityTypeCode = Annotated[
         description="Code from the activity-types table, such as ACTIVITY_TYPE_TENNIS.",
     ),
 ]
-
-
-class ActivityPriceUnit(StrEnum):
-    """Pricing unit for an activity rate; the demo currently charges per guest."""
-
-    PER_GUEST = "ACTIVITY_PRICE_UNIT_PER_GUEST"
 
 
 class ActivityPrice(Contract):

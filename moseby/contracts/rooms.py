@@ -1,39 +1,15 @@
-from enum import StrEnum
 from typing import Annotated
 
 from pydantic import Field
 
+from moseby.domain.enums import BedType as BedType
+from moseby.domain.enums import RoomServiceStatus as RoomServiceStatus
+from moseby.domain.enums import RoomTier as RoomTier
 from moseby.identifiers import BedId, HotelId, PriceId, RoomId
 
 from .amounts import NonNegativeAmount
 from .common import Contract, IdFilter, Request, SearchRequestPayload
 from .ranges import AmountRange, DateRange, NumberRange
-
-
-class BedType(StrEnum):
-    """Supported bed categories; dimensions and sleeping capacity are defined separately."""
-
-    UNKNOWN = "BED_TYPE_UNKNOWN"
-    SINGLE = "BED_TYPE_SINGLE"
-    TWIN = "BED_TYPE_TWIN"
-    DOUBLE = "BED_TYPE_DOUBLE"
-    QUEEN = "BED_TYPE_QUEEN"
-    KING = "BED_TYPE_KING"
-
-
-class RoomTier(StrEnum):
-    """Service tier, separate from bed configuration; unknown means not classified."""
-
-    UNKNOWN = "ROOM_TIER_UNKNOWN"
-    STANDARD = "ROOM_TIER_STANDARD"
-    VIP = "ROOM_TIER_VIP"
-
-
-class RoomServiceStatus(StrEnum):
-    """Room condition, independent of reservations and temporary holds."""
-
-    IN_SERVICE = "ROOM_SERVICE_STATUS_IN_SERVICE"
-    OUT_OF_SERVICE = "ROOM_SERVICE_STATUS_OUT_OF_SERVICE"
 
 
 class Bed(Contract):

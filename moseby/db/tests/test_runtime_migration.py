@@ -192,8 +192,14 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
             self.job(connection)
             inspector = sa.inspect(connection)
-            self.assertEqual(len(inspector.get_table_names()), 35)
-            for name in inspector.get_table_names():
+            # FTS5 owns its virtual table and supporting storage tables.
+            tables = [
+                name
+                for name in inspector.get_table_names()
+                if not name.startswith("party_details_fts")
+            ]
+            self.assertEqual(len(tables), 35)
+            for name in tables:
                 if name != "alembic_version":
                     self.assertTrue(inspector.get_table_options(name)["sqlite_strict"])
                     # SQLite renders AUTOINCREMENT as an unnamed inline key.

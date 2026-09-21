@@ -3,6 +3,8 @@
 from sqlalchemy import Column, Select, and_, func, select
 from sqlalchemy.sql.selectable import ScalarSelect
 
+from moseby.domain.enums import BookingStatus
+
 from ..tables import (
     activities,
     activity_reservation_revisions,
@@ -36,7 +38,7 @@ def current_reservations() -> Select:
             and_(
                 revision.cancelled.is_(False),
                 booking_revisions.c.status.in_(
-                    ("BOOKING_STATUS_CONFIRMED", "BOOKING_STATUS_COMPLETED")
+                    (BookingStatus.CONFIRMED.value, BookingStatus.COMPLETED.value)
                 ),
             ).label("effective"),
         )

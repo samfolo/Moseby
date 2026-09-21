@@ -1,20 +1,11 @@
-from enum import StrEnum
 from typing import Literal, Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from moseby.domain.enums import GuestReferenceStatus as GuestReferenceStatus
 from moseby.identifiers import GuestId, PartyDetailId, PartyId
 
 from .common import Contract, IdFilter, Request, SearchRequestPayload
-
-
-class GuestReferenceStatus(StrEnum):
-    """Proposed outcomes distinguish an empty resolved result from unresolved references."""
-
-    PENDING = "GUEST_REFERENCE_STATUS_PENDING"
-    RESOLVED = "GUEST_REFERENCE_STATUS_RESOLVED"
-    AMBIGUOUS = "GUEST_REFERENCE_STATUS_AMBIGUOUS"
-    FAILED = "GUEST_REFERENCE_STATUS_FAILED"
 
 
 class PartyDetail(Contract):
@@ -52,7 +43,7 @@ class SearchPartyDetailsRequestPayload(SearchRequestPayload):
     text: str | None = Field(
         default=None,
         min_length=1,
-        description="Lexical text query; no semantic search yet.",
+        description="Whole-word keywords, all required in any order; case and Latin accents are ignored. Punctuation separates words.",
     )
 
 

@@ -2,6 +2,7 @@
 
 from sqlalchemy import Connection, Select, and_, select
 
+from moseby.domain.enums import BookingStatus
 from moseby.identifiers import BookingId, HotelId, RoomKeyId, RoomReservationId
 
 from ..models.room_keys import RoomKeyRow
@@ -31,7 +32,7 @@ def _select(hotel_id: HotelId, now: int) -> Select:
     effective = and_(
         room_keys.c.deactivated_at.is_(None),
         revision.cancelled.is_(False),
-        booking_revisions.c.status == "BOOKING_STATUS_CONFIRMED",
+        booking_revisions.c.status == BookingStatus.CONFIRMED.value,
         revision.min_date <= now,
         revision.max_date > now,
     )

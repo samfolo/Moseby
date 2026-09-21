@@ -1,8 +1,7 @@
-from typing import Literal
-
+from moseby.domain.enums import ContactPreference
 from moseby.identifiers import GuestId, PartyId
 
-from .common import Row
+from .common import Row, StoredEnum
 
 
 class GuestRow(Row):
@@ -15,8 +14,6 @@ class GuestRow(Row):
     dietary_requirements: str | None
     phone: str | None
     email: str | None
-    contact_preference: (
-        Literal["CONTACT_PREFERENCE_PHONE", "CONTACT_PREFERENCE_EMAIL"] | None
-    )
+    contact_preference: StoredEnum[ContactPreference] | None
     created_at: int
     updated_at: int

@@ -27,9 +27,10 @@ For another environment, pass `PYTHON=/path/to/python` to either command.
 Hand-authored [Alembic migrations](moseby/db/migrations/versions) define the SQLite
 schema. The first migration covers domain tables and immutable revision history.
 The second covers threads, records, queued work, schedules and notification
-publication. The third adds cancellation of pending user input.
+publication. The third adds cancellation of pending user input. The fourth adds
+FTS5 keyword search for party evidence, kept in sync by database triggers.
 Checkout storage and repository mutations remain to be implemented.
-Performance indexes are deferred until we review the queries; primary-key and
+Other performance indexes are deferred until we review the queries; primary-key and
 uniqueness indexes enforce data rules already, including one active run per thread.
 `schema/draft.sql` is historical and is not used to initialize the database.
 
@@ -54,10 +55,10 @@ Inspect SQL without creating a database:
 
 [Repositories](moseby/db/repositories) are resource modules with connection-first
 functions. Python modules provide the namespace; a class of static methods would
-add no state or behaviour here. Bookings, parties, guests, room reservations,
-room keys, activities and activity reservations have separate modules. Stay-related
-queries require a hotel scope supplied by the service; activities are a shared
-catalogue. Repositories apply scope but do not authenticate the caller.
+add no state or behaviour here. Each resource has its own module. Hotel-owned
+resources require a hotel scope supplied by the service; activities, activity
+types, venues and prices are shared catalogues. Repositories apply scope but do
+not authenticate the caller.
 
 ```python
 from moseby.db.pagination import PageRequest
@@ -84,7 +85,9 @@ reapplies scope. Rows may change between requests, and inserts behind the cursor
 require a refresh to see. Sequence-based runtime feeds have their own ordering.
 
 [Database read models](moseby/db/models) are frozen Pydantic models, separate from
-gateway shapes. They retain integer UTC-microsecond timestamps; service mapping
+gateway shapes. Shared [domain enums](moseby/domain/enums.py) supply choices to
+both layers and repository queries; migrations keep their original values.
+Read models retain integer UTC-microsecond timestamps; service mapping
 converts them for the API. Reservation reads include their exact agreed price
 version. Key reads take `now` in UTC microseconds and derive access from the
 current booking, reservation dates and revocation state.
@@ -94,6 +97,21 @@ filters. Reservation searches produce flat guest/party itineraries and default t
 effective reservations. Their agreed prices stay fixed while catalogue prices can
 change. Capacity counts include all hotels, including results beyond the current
 page; individual reservation reads remain hotel-scoped.
+
+Room reads attach the current price and fetch all beds for a returned page in one
+additional query. Room search applies IDs, tiers, bed types/counts, bathrooms,
+service status, currency-specific price bounds and reservation availability before
+pagination. It requires every requested bed type; other lists match any value.
+Availability uses current reservations on confirmed bookings and allows touching
+stay boundaries. Checkout holds remain unimplemented; their eventual storage must
+join the same availability check before the gateway supports checkout. Search
+does not reserve a room, and booking must recheck capacity in its write transaction.
+Price lookups also support an exact saved revision.
+Party-evidence searches filter saved guest references and FTS5 whole-word keywords.
+All keywords must match, in any order; case and Latin accents are ignored.
+Punctuation separates words, and query operators are treated as ordinary words.
+Results keep the same creation-time order and hotel scope. The small activity-type catalogue is returned
+in full, ordered by code; ordinary resource lists use the shared paginator.
 
 `make test-db` exercises the reads against freshly migrated, seeded databases,
 including cross-hotel lookups, cursor boundaries, cancellation and more than 100

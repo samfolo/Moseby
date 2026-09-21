@@ -1,19 +1,11 @@
-from enum import StrEnum
 from typing import Annotated, Literal, Self, TypedDict
 
 from pydantic import ConfigDict, Field, model_validator, with_config
 
+from moseby.domain.enums import ContactPreference as ContactPreference
 from moseby.identifiers import BookingId, GuestId, PartyId
 
 from .common import Contract, IdFilter, Request, SearchRequestPayload
-
-
-class ContactPreference(StrEnum):
-    """Preferred contact channel; null on the guest selects all supplied channels."""
-
-    PHONE = "CONTACT_PREFERENCE_PHONE"
-    EMAIL = "CONTACT_PREFERENCE_EMAIL"
-
 
 # Mask entries are exact payload field names.
 type UpdateGuestFieldMask = Literal[

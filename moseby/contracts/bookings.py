@@ -1,21 +1,13 @@
-from enum import StrEnum
 from typing import Self
 
 from pydantic import AwareDatetime, Field, model_validator
 
+from moseby.domain.enums import BookingStatus as BookingStatus
 from moseby.identifiers import BookingId, HotelId, RoomId, RoomReservationId
 
 from .common import Contract
 from .ranges import DateRange
 from .rooms import NightlyPrice
-
-
-class BookingStatus(StrEnum):
-    """A proposed amendment leaves the accepted booking confirmed until committed."""
-
-    CONFIRMED = "BOOKING_STATUS_CONFIRMED"
-    CANCELLED = "BOOKING_STATUS_CANCELLED"
-    COMPLETED = "BOOKING_STATUS_COMPLETED"
 
 
 class RoomReservation(Contract):

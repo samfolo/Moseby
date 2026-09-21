@@ -33,3 +33,29 @@ class DateRange(Filters):
         if self.min_date >= self.max_date:
             raise ValueError("min_date must precede max_date")
         return self
+
+
+class NumberRange(Filters):
+    """Inclusive integer bounds; supply either or both ends of the range."""
+
+    min_value: int | None = None
+    max_value: int | None = None
+
+    @model_validator(mode="after")
+    def check_bounds(self) -> Self:
+        """Require a bound and reject a minimum greater than the maximum."""
+        if self.min_value is None and self.max_value is None:
+            raise ValueError("supply at least one range bound")
+        if (
+            self.min_value is not None
+            and self.max_value is not None
+            and self.min_value > self.max_value
+        ):
+            raise ValueError("min_value must not exceed max_value")
+        return self
+
+
+class AmountRange(NumberRange):
+    """Inclusive minor-unit bounds within one currency; no currency conversion."""
+
+    currency: str = Field(pattern=r"^[A-Z]{3}$")

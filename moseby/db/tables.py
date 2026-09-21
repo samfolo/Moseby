@@ -1,8 +1,105 @@
 """Core query metadata. Handwritten migrations own schema creation and constraints."""
 
-from sqlalchemy import Boolean, Column, Integer, MetaData, Table, Text
+from sqlalchemy import JSON, Boolean, Column, Integer, MetaData, Table, Text
 
 metadata = MetaData()
+
+hotels = Table(
+    "hotels",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("name", Text),
+    Column("address_line_1", Text),
+    Column("address_line_2", Text),
+    Column("city", Text),
+    Column("postcode", Text),
+    Column("country_code", Text),
+)
+staff_members = Table(
+    "staff_members",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("hotel_id", Text),
+    Column("staff_code", Text),
+    Column("first_name", Text),
+    Column("last_name", Text),
+    Column("title", Text),
+    Column("role", Text),
+)
+rooms = Table(
+    "rooms",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("hotel_id", Text),
+    Column("label", Text),
+    Column("description", Text),
+    Column("tier", Text),
+    Column("number_of_bathrooms", Integer),
+    Column("in_service", Boolean),
+    Column("price_id", Text),
+)
+beds = Table(
+    "beds",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("room_id", Text),
+    Column("type", Text),
+)
+prices = Table(
+    "prices",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+)
+venues = Table(
+    "venues",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("name", Text),
+    Column("capacity", Integer),
+    Column("address_line_1", Text),
+    Column("address_line_2", Text),
+    Column("city", Text),
+    Column("postcode", Text),
+    Column("country_code", Text),
+)
+activity_types = Table(
+    "activity_types",
+    metadata,
+    Column("code", Text),
+    Column("name", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+)
+party_details = Table(
+    "party_details",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("party_id", Text),
+    Column("text", Text),
+    Column("referenced_guest_ids_json", JSON),
+    Column("reference_format_version", Integer),
+    Column("reference_status", Text),
+)
+
+party_details_fts = Table(
+    "party_details_fts",
+    metadata,
+    Column("detail_id", Text),
+    Column("text", Text),
+)
 
 bookings = Table(
     "bookings",

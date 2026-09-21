@@ -4931,7 +4931,8 @@ components:
             minLength: 1
           - type: 'null'
           title: Text
-          description: Lexical text query; no semantic search yet.
+          description: Whole-word keywords, all required in any order; case and Latin
+            accents are ignored. Punctuation separates words.
       additionalProperties: false
       type: object
       required:
