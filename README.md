@@ -5,8 +5,9 @@ The aim is an agent that can manage bookings, arrange activities and follow up
 when something needs attention.
 
 The database and repository methods are in place, and the inference provider can
-make model requests. The agent loop, working API handlers and user interface still
-need to be connected. This is a work in progress.
+make model requests. Guest lookup, room search and activity browsing work over
+HTTP. Room search also has an agent tool. The agent loop, remaining API handlers
+and user interface still need to be connected.
 
 ## Get started
 
@@ -145,7 +146,45 @@ thread and job context separately from the model's arguments.
 is offered, validates arguments and calls the handler. Invalid arguments return
 field-level errors. A handler can raise `ToolFailure` with a safe explanation of a
 business conflict. Unexpected errors and invalid handler output reach the worker's
-failure handling. Domain handlers and worker dispatch still need to be connected.
+failure handling.
+
+The [room tool](moseby/tools/rooms.py) binds `search_rooms` to the application's
+database engine. Its [service](moseby/services/rooms.py) checks room read access,
+keeps queries within the caller's hotel and maps database rows into the room
+contract. The async handler runs synchronous database work in a worker thread.
+Worker dispatch and the remaining domain tools still need wiring.
+
+## Use the HTTP gateway
+
+`moseby.contracts.api.create_app()` accepts a database engine, `staff_member_id`
+and `hotel_id` from the application host. These identify the single acting staff
+member for the demo. The engine must point to a migrated, seeded database; its
+owner closes it when the application stops.
+
+`QUERY /rooms` accepts the existing `{ "request_id": "…", "payload": { … } }`
+contract and calls the same room-search service as the agent tool. The gateway
+loads the staff member's current role for each request. Concierge staff receive
+room, guest and activity read access; unknown roles receive none. Client headers cannot select staff
+identity or grant permissions. This is a single-staff demo binding, not login
+authentication.
+
+Available reads:
+
+- `QUERY /rooms` and `GET /rooms/{id}`.
+- `GET /guests`, `GET /guests/{id}` and `QUERY /guests`.
+- `GET /activities`, `GET /activities/{id}` and `QUERY /activities`.
+
+Guest searches accept IDs, party IDs, booking IDs and words in a name. Name
+search uses the same FTS5 keyword matching as party notes. Every whole-word
+keyword must appear in a first, last or preferred name; case and Latin accents
+are ignored. Filters run before pagination. Activity
+results include current prices and reserved-place counts across the shared
+schedule; guest details remain scoped to the staff member's hotel.
+
+The no-argument app supports contract generation. These reads return 503 until
+configured; other operations remain 501 stubs. Reads return 400 for invalid
+cursors, 403 for denied access and 422 for invalid request fields. Single-resource
+reads return 404 for missing IDs or IDs outside the caller's hotel.
 
 ## How the data layer works
 
@@ -253,12 +292,14 @@ Those tests check our request handling; model accuracy needs a separate live che
 ## What remains
 
 The next step is to connect the agent loop, services and worker execution so a
-staff message can lead to a model reply and tool calls. The API routes currently
-return HTTP 501, meaning they are defined but not implemented.
+staff message can lead to a model reply and tool calls. Guest lookup, room search
+and activity browsing have working HTTP handlers. Other API routes return HTTP
+501 until their service operations are connected.
 
 The database includes tables for schedules and notifications, but their execution
-still needs to be built. Checkout, payment handling and a user interface are also
-unfinished. Search and uniqueness constraints already have some indexes; further
+still needs to be built. The demo booking flow will confirm stays without
+collecting payment. Its service and tool still need connecting, as do guest-note
+classification jobs and the user interface. Payment integration is separate work. Search and uniqueness constraints already have some indexes; further
 performance indexes will follow the queries that need them.
 
 ## Find your way around

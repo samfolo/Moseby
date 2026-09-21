@@ -4,14 +4,10 @@ from typing import Annotated, Self
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, model_validator
 
-
-def _sorted_values[T: str](values: list[T]) -> list[T]:
-    """Give equivalent lists the same cursor identity, ignoring order and repeats."""
-    return sorted(set(values))
-
+from moseby.common.types import sorted_choices
 
 type IdFilter[T] = Annotated[
-    list[T], Field(min_length=1, max_length=100), AfterValidator(_sorted_values)
+    list[T], Field(min_length=1, max_length=100), AfterValidator(sorted_choices)
 ]
 
 

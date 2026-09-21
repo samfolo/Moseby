@@ -33,7 +33,12 @@ class Page[T](Contract):
 
 
 class PageRequest(Contract):
-    cursor: str | None = Field(default=None, description="Continue the same query.")
+    cursor: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=2048,
+        description="Continue the same query.",
+    )
     limit: int = Field(default=50, ge=1, le=100)
 
 

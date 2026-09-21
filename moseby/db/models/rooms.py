@@ -1,5 +1,6 @@
 from pydantic import Field
 
+from moseby.common.types import EnumChoices
 from moseby.domain.enums import BedType, RoomServiceStatus, RoomTier
 from moseby.identifiers import BedId, HotelId, PriceId, RoomId
 
@@ -39,10 +40,10 @@ class RoomFilters(Filters):
 
     hotel_ids: IdFilter[HotelId] | None = None
     ids: IdFilter[RoomId] | None = None
-    tiers: IdFilter[StoredEnum[RoomTier]] | None = None
-    bed_types: IdFilter[StoredEnum[BedType]] | None = None
+    tiers: EnumChoices[StoredEnum[RoomTier]] | None = None
+    bed_types: EnumChoices[StoredEnum[BedType]] | None = None
     number_of_beds: NumberRange | None = None
     number_of_bathrooms: NumberRange | None = None
     nightly_amount: AmountRange | None = None
-    service_statuses: IdFilter[StoredEnum[RoomServiceStatus]] | None = None
+    service_statuses: EnumChoices[StoredEnum[RoomServiceStatus]] | None = None
     availability_date_range: DateRange | None = None

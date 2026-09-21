@@ -9,9 +9,10 @@ from moseby.domain.enums import BookingStatus
 from moseby.identifiers import BookingId, GuestId, HotelId, PartyId
 
 from ..errors import WriteConflict
-from ..models.guests import GuestRow, GuestValues, NewGuest
+from ..full_text import match_keywords
+from ..models.guests import GuestFilters, GuestRow, GuestValues, NewGuest
 from ..pagination import Page, PageRequest, read_page
-from ..tables import bookings, guests, parties
+from ..tables import bookings, guests, guests_fts, parties
 from . import bookings as bookings_repository
 from . import parties as parties_repository
 from ._queries import unique_ids
@@ -103,6 +104,42 @@ def find_all_by_booking_id(
         page=page or PageRequest(),
         query="guests.find_all_by_booking_id",
         criteria={"hotel_id": hotel_id, "booking_id": booking_id},
+    )
+
+
+def search(
+    connection: Connection,
+    filters: GuestFilters,
+    *,
+    hotel_id: HotelId,
+    page: PageRequest | None = None,
+) -> Page[GuestRow]:
+    """Find guests in this hotel, including those from past or cancelled stays.
+
+    Use shared full-text matching across first, last and preferred names. Apply
+    every filter before paging by creation time and ID.
+    """
+    statement = _select(hotel_id)
+    for column, values in (
+        (guests.c.id, filters.ids),
+        (guests.c.party_id, filters.party_ids),
+        (parties.c.booking_id, filters.booking_ids),
+    ):
+        if values is not None:
+            statement = statement.where(column.in_(values))
+    if filters.name is not None:
+        matches = select(guests_fts.c.guest_id).where(
+            match_keywords(guests_fts.c.name, filters.name)
+        )
+        statement = statement.where(guests.c.id.in_(matches))
+    return read_page(
+        connection,
+        statement,
+        table=guests,
+        row_type=GuestRow,
+        page=page or PageRequest(),
+        query="guests.search.keywords_v1",
+        criteria={"hotel_id": hotel_id, "filters": filters.model_dump_json()},
     )
 
 

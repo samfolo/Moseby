@@ -101,6 +101,13 @@ party_details_fts = Table(
     Column("text", Text),
 )
 
+guests_fts = Table(
+    "guests_fts",
+    metadata,
+    Column("guest_id", Text),
+    Column("name", Text),
+)
+
 bookings = Table(
     "bookings",
     metadata,

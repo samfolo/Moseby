@@ -86,7 +86,8 @@ class SearchGuestsRequestPayload(SearchRequestPayload):
     name: str | None = Field(
         default=None,
         min_length=1,
-        description="Lexical match across first, last and preferred names.",
+        pattern=r"\S",
+        description="Match every whole-word keyword across first, last and preferred names, ignoring case and Latin accents.",
     )
 
 

@@ -57,7 +57,9 @@ class Activity(Contract):
 class SearchActivitiesRequestPayload(SearchRequestPayload):
     ids: IdFilter[ActivityId] | None = None
     venue_ids: IdFilter[VenueId] | None = None
-    types: Annotated[list[ActivityTypeCode], Field(min_length=1)] | None = None
+    types: (
+        Annotated[list[ActivityTypeCode], Field(min_length=1, max_length=100)] | None
+    ) = None
     date_range: DateRange | None = Field(
         default=None, description="Match events overlapping this interval."
     )

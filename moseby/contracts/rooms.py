@@ -1,7 +1,6 @@
-from typing import Annotated
-
 from pydantic import Field
 
+from moseby.common.types import EnumChoices
 from moseby.domain.enums import BedType as BedType
 from moseby.domain.enums import RoomServiceStatus as RoomServiceStatus
 from moseby.domain.enums import RoomTier as RoomTier
@@ -44,17 +43,17 @@ class SearchRoomsRequestPayload(SearchRequestPayload):
 
     hotel_ids: IdFilter[HotelId] | None = None
     ids: IdFilter[RoomId] | None = None
-    tiers: Annotated[list[RoomTier], Field(min_length=1)] | None = Field(
+    tiers: EnumChoices[RoomTier] | None = Field(
         default=None, description="Match any listed room tier."
     )
-    bed_types: Annotated[list[BedType], Field(min_length=1)] | None = Field(
+    bed_types: EnumChoices[BedType] | None = Field(
         default=None, description="Match rooms containing every listed bed type."
     )
     number_of_beds: NumberRange | None = None
     number_of_bathrooms: NumberRange | None = None
     nightly_amount: AmountRange | None = None
-    service_statuses: Annotated[list[RoomServiceStatus], Field(min_length=1)] | None = (
-        Field(default=None, description="Match any listed service status.")
+    service_statuses: EnumChoices[RoomServiceStatus] | None = Field(
+        default=None, description="Match any listed service status."
     )
     availability_date_range: DateRange | None = Field(
         default=None,

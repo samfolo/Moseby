@@ -193,11 +193,14 @@ class RuntimeMigrationTests(unittest.TestCase):
             )
             self.job(connection)
             inspector = sa.inspect(connection)
-            # FTS5 owns its virtual table and supporting storage tables.
+            # SQLite identifies FTS virtual and storage tables separately.
+            ordinary_tables = {
+                row["name"]
+                for row in connection.exec_driver_sql("PRAGMA table_list").mappings()
+                if row["type"] == "table" and row["schema"] == "main"
+            }
             tables = [
-                name
-                for name in inspector.get_table_names()
-                if not name.startswith("party_details_fts")
+                name for name in inspector.get_table_names() if name in ordinary_tables
             ]
             self.assertEqual(len(tables), 35)
             for name in tables:
