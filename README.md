@@ -134,6 +134,19 @@ explicit selection. The thread and run repositories provide
 output tokens from generation and classification. These are validated settings;
 the run loop still needs to enforce them as work proceeds.
 
+## Define a tool
+
+A [tool](moseby/tools/definitions.py) combines Pydantic argument and result models,
+required permissions and an async handler. Its model-facing JSON Schema comes
+from the argument model used during execution. The handler receives trusted staff,
+thread and job context separately from the model's arguments.
+
+[`execute_tool`](moseby/tools/execution.py) refreshes access, checks that the tool
+is offered, validates arguments and calls the handler. Invalid arguments return
+field-level errors. A handler can raise `ToolFailure` with a safe explanation of a
+business conflict. Unexpected errors and invalid handler output reach the worker's
+failure handling. Domain handlers and worker dispatch still need to be connected.
+
 ## How the data layer works
 
 [Hand-written Alembic migrations](moseby/db/migrations/versions) define the SQLite
@@ -229,6 +242,7 @@ make test-models
 make test-contracts
 make test-inference
 make test-agents
+make test-tools
 ```
 
 Database tests use freshly migrated databases with sample data. They cover hotel

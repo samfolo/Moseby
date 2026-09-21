@@ -1,6 +1,6 @@
 PYTHON ?= .venv/bin/python
 
-.PHONY: format check test-db test-models test-contracts test-inference test-agents migrate
+.PHONY: format check test-db test-models test-contracts test-inference test-agents test-tools migrate
 
 format:
 	$(PYTHON) -m ruff check --select I --fix .
@@ -24,6 +24,9 @@ test-inference:
 
 test-agents:
 	$(PYTHON) -m unittest discover -s moseby/agents/tests -v
+
+test-tools:
+	$(PYTHON) -m unittest discover -s moseby/tools/tests -v
 
 migrate:
 	$(PYTHON) -m alembic upgrade head
