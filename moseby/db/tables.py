@@ -372,3 +372,63 @@ completion_outbox = Table(
     Column("record_id", Text),
     Column("appended_at", Integer),
 )
+
+
+schedules = Table(
+    "schedules",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("actor_staff_member_id", Text),
+    Column("revision", Integer),
+    Column("enabled", Boolean),
+    Column("due_at", Integer),
+    Column("cron_expression", Text),
+    Column("cron_dialect", Text),
+    Column("thread_id", Text),
+    Column("handler", Text),
+    Column("format_version", Integer),
+    Column("input_json", JSON),
+)
+
+
+schedule_occurrences = Table(
+    "schedule_occurrences",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("schedule_id", Text),
+    Column("schedule_revision", Integer),
+    Column("due_at", Integer),
+    Column("format_version", Integer),
+    Column("snapshot_json", JSON),
+    Column("job_id", Text),
+)
+
+
+notification_requests = Table(
+    "notification_requests",
+    metadata,
+    Column("id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("actor_staff_member_id", Text),
+    Column("request_id", Text),
+    Column("recipient_staff_member_id", Text),
+    Column("recipient_guest_id", Text),
+    Column("format_version", Integer),
+    Column("payload_json", JSON),
+    Column("published_at", Integer),
+)
+
+
+published_events = Table(
+    "published_events",
+    metadata,
+    Column("sequence", Integer),
+    Column("notification_id", Text),
+    Column("created_at", Integer),
+    Column("format_version", Integer),
+    Column("payload_json", JSON),
+)

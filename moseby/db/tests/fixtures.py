@@ -10,6 +10,7 @@ from alembic.config import Config
 
 from moseby.db.connection import create_database_engine
 from moseby.db.transaction import transaction
+from moseby.domain.enums import BookingStatus, RoomTier
 
 ROOT = Path(__file__).resolve().parents[3]
 NOW = 1_800_000_000_123_456
@@ -74,7 +75,7 @@ class StayDatabaseTestCase(unittest.TestCase):
                 "booking_revisions",
                 booking_id=identifier("booking", number),
                 revision=1,
-                status="BOOKING_STATUS_CONFIRMED",
+                status=BookingStatus.CONFIRMED.value,
             )
             self.insert(
                 connection,
@@ -98,7 +99,7 @@ class StayDatabaseTestCase(unittest.TestCase):
                 hotel_id=identifier("hotel", number),
                 label="Rose",
                 description="",
-                tier="ROOM_TIER_STANDARD",
+                tier=RoomTier.STANDARD.value,
                 number_of_bathrooms=1,
                 in_service=1,
                 price_id=identifier("price"),

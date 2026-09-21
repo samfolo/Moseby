@@ -127,6 +127,12 @@ together. Claims remain readable after expiry; worker writes must check the toke
 and expiry in the write itself. Completion searches show undelivered results by
 default, including results for stopped runs.
 
+Schedule reads include disabled definitions. Recorded occurrences keep their
+original job and thread scope after a schedule changes. Notifications and events
+are visible to their author or staff recipient within the recipient's hotel.
+Event reads resume after a saved publication sequence, allowing gaps; consumers
+track processing separately. These reads do not execute schedules or publish messages.
+
 `make test-db` exercises the reads against freshly migrated, seeded databases,
 including cross-hotel lookups, cursor boundaries, cancellation and more than 100
 keys or activity reservations.
