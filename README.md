@@ -1,65 +1,124 @@
 # Moseby
 
-A Python experiment in proactive, staff-facing resort operations.
-The project has reviewed gateway contracts, hand-authored migrations, domain
-repositories, and durable job/task storage. Gateway handlers and the agent turn
-loop remain to be connected.
+Moseby is a Python experiment in helping resort staff look after their guests.
+The aim is an agent that can manage bookings, arrange activities and follow up
+when something needs attention.
 
-## Formatting and linting
+The database and repository methods are in place, and the inference provider can
+make model requests. The agent loop, working API handlers and user interface still
+need to be connected. This is a work in progress.
 
-Use Python 3.14 and the pinned [Ruff](https://docs.astral.sh/ruff/) version for
-formatting, import ordering and linting:
+## Get started
+
+Use Python 3.14:
 
 ```sh
 python3 -m venv .venv
 .venv/bin/python -m pip install -e '.[contract,dev]'
-make format
+make migrate
 make check
 ```
 
-`make format` sorts imports and formats Python. `make check` reports lint and
-formatting problems without changing files. Rules live in `pyproject.toml`:
-88-column formatting, basic errors, unused names and common bug patterns.
-Docstrings remain concise; no mandatory docstring boilerplate is imposed.
-For another environment, pass `PYTHON=/path/to/python` to either command.
-
-## Database
-
-Hand-authored [Alembic migrations](moseby/db/migrations/versions) define the SQLite
-schema. The first migration covers domain tables and immutable revision history.
-The second covers threads, records, queued work, schedules and notification
-publication. The third adds cancellation of pending user input. The fourth adds
-FTS5 keyword search for party evidence, kept in sync by database triggers.
-Checkout storage and payment handling remain to be implemented.
-Other performance indexes are deferred until we review the queries; primary-key and
-uniqueness indexes enforce data rules already, including one active run per thread.
-`schema/draft.sql` is historical and is not used to initialize the database.
-
-```sh
-make migrate
-make test-db
-```
-
-The default database is `moseby.db` (ignored by Git). To choose another SQLite file:
+`make migrate` creates or updates the local SQLite database, `moseby.db`. Git
+ignores this file. To use another location:
 
 ```sh
 MOSEBY_DATABASE_URL=sqlite:////absolute/path/moseby.db make migrate
 ```
 
-Inspect SQL without creating a database:
+[Ruff](https://docs.astral.sh/ruff/) keeps the Python code consistent.
+`make format` sorts imports and formats the code. `make check` checks formatting
+and catches common mistakes. To use another Python environment, pass
+`PYTHON=/path/to/python` to either command.
+
+## Call a model
+
+Set these three environment variables before running the Python example below:
+
+```sh
+export OPENROUTER_API_KEY='your-key'
+export MOSEBY_GENERATION_MODEL='provider/model'
+export MOSEBY_CLASSIFICATION_MODEL='typesafe/jev-1.13'
+```
+
+Replace `provider/model` with an OpenRouter model that supports tool calls.
+[Settings](moseby/config.py) require all three values. The key uses Pydantic's
+`SecretStr` type and is excluded when settings are printed or exported normally.
+If you keep settings in a `.env` file, load it through your shell or process
+launcher. Moseby reads the environment directly, and Git ignores `.env` files.
+
+The [provider interface](moseby/inference/provider.py) has two methods:
+
+- `generate` returns an assistant reply, which may include tool calls.
+- `classify` answers questions about supplied information. It can estimate
+  whether a statement is true or choose one item from a list.
+
+The [OpenRouter implementation](moseby/inference/providers/openrouter.py) uses
+HTTPX to make requests. It translates our models into the provider's JSON format
+and validates the replies. Tool arguments stay as dictionaries in our code and
+become JSON strings when sent to the provider. External URLs are listed in
+[endpoints.py](moseby/inference/providers/endpoints.py).
+
+```python
+import asyncio
+import httpx
+
+from moseby.config import InferenceSettings
+from moseby.inference.models.generation import GenerationRequest, TextMessage
+from moseby.inference.providers.openrouter import OpenRouterProvider
+
+
+async def main():
+    settings = InferenceSettings.from_environment()
+    async with httpx.AsyncClient() as client:
+        provider = OpenRouterProvider(settings, client)
+        result = await provider.generate(
+            GenerationRequest(
+                messages=[TextMessage(role="user", content="Hello, Moseby.")]
+            )
+        )
+        print(result.output.text)
+
+
+asyncio.run(main())
+```
+
+Each result includes the request and response bodies so the runtime can save what
+happened. Assistant replies also keep provider data needed for the next call,
+such as reasoning signatures. The provider returns complete replies; streaming
+is still to be added.
+
+Classification uses OpenRouter's
+[Decisions API](https://openrouter.ai/docs/api/api-reference/alphadecisions/submit-a-decisions-questions-and-answers-request).
+For example, one request can contain a guest note, the party's guest list and a
+question about each guest. The application must decide how confident an answer
+needs to be before saving a reference. A high score alone does not prove that the
+model identified the right person.
+
+The calling code manages the HTTP client and decides when to retry. Requests
+allow 10 seconds to connect and 60 seconds for network reads or writes.
+The provider uses the application API key. The service and runtime still need
+to connect staff permission checks, thread ownership and a record of who requested
+each call.
+
+## How the data layer works
+
+[Hand-written Alembic migrations](moseby/db/migrations/versions) define the SQLite
+tables, constraints and triggers. They cover hotel data, thread history, queued
+work and keyword search. Constraints catch invalid writes even if application
+code makes a mistake. Changes that need history are saved as new revisions.
+
+To read the migration SQL without creating a database:
 
 ```sh
 .venv/bin/python -m alembic upgrade head --sql
 ```
 
-## Repository reads
+### Read data through repositories
 
-[Repositories](moseby/db/repositories) are resource modules with connection-first
-functions. Python modules provide the namespace; a class of static methods would
-add no state or behaviour here. Each resource has its own module. Hotel-owned
-resources require a hotel scope supplied by the service; activities, activity
-types, venues and prices are shared catalogues. Repositories apply scope but do
-not authenticate the caller.
+Each resource has a [repository module](moseby/db/repositories), such as
+`bookings` or `guests`. Its functions take a database connection as their first
+argument. The caller opens the transaction and decides when to commit it.
 
 ```python
 from moseby.db.pagination import PageRequest
@@ -73,168 +132,96 @@ with transaction(engine) as connection:
     )
 ```
 
-`find_by_id` returns one typed row or `None`. `find_by_ids` returns a dictionary
-of found IDs, omitting missing and out-of-scope resources; batches accept up to
-100 input IDs. `find_all_by_*` returns a flat page. Repositories share the caller's
-connection and never commit or acquire another one.
+`find_by_id` returns one row or `None`. `find_by_ids` accepts up to 100 IDs and
+returns a dictionary of the records it found. `find_all_by_*` returns a page.
+Hotel-owned data is filtered by hotel, and private thread data by its creator.
+The service must check the caller's permissions before using these methods.
 
-[Pagination](moseby/db/pagination.py) orders by `(created_at, id)` ascending.
-Continue with `PageRequest(cursor=page.next_cursor)` until the cursor is null.
-Tokens bind to the query and its scope/filters; changing page size is allowed.
-Tokens are continuation positions, not credentials or snapshots. Every page
-reapplies scope. Rows may change between requests, and inserts behind the cursor
-require a refresh to see. Sequence-based runtime feeds have their own ordering.
+[Pagination](moseby/db/pagination.py) normally sorts by creation time, then ID.
+Pass `page.next_cursor` to the next request until it is null. Keep the same filters
+when following a cursor. Results can change between requests; a cursor does not
+freeze the data. Thread history uses its saved sequence to preserve record order.
 
-[Database read models](moseby/db/models) are frozen Pydantic models, separate from
-gateway shapes. Shared [domain enums](moseby/domain/enums.py) supply choices to
-both layers and repository queries; migrations keep their original values.
-Read models retain integer UTC-microsecond timestamps; service mapping
-converts them for the API. Reservation reads include their exact agreed price
-version. Key reads take `now` in UTC microseconds and derive access from the
-current booking, reservation dates and revocation state.
+Room searches filter by price, tier, beds, bathrooms and availability before
+paging the results. Activity searches include capacity and date filters.
+[Party-note search](moseby/db/full_text.py) uses SQLite's FTS5 keyword search.
+All supplied words must match, but case, word order and Latin accents do not matter.
 
-Activity searches accept ID, venue, type, overlapping-date and available-place
-filters. Reservation searches produce flat guest/party itineraries and default to
-effective reservations. Their agreed prices stay fixed while catalogue prices can
-change. Capacity counts include all hotels, including results beyond the current
-page; individual reservation reads remain hotel-scoped.
+### Change related records together
 
-Room reads attach the current price and fetch all beds for a returned page in one
-additional query. Room search applies IDs, tiers, bed types/counts, bathrooms,
-service status, currency-specific price bounds and reservation availability before
-pagination. It requires every requested bed type; other lists match any value.
-Availability uses current reservations on confirmed bookings and allows touching
-stay boundaries. Checkout holds remain unimplemented; their eventual storage must
-join the same availability check before the gateway supports checkout. Search
-does not reserve a room, and booking must recheck capacity in its write transaction.
-Price lookups also support an exact saved revision.
-Party-evidence searches filter saved guest references and FTS5 whole-word keywords.
-All keywords must match, in any order; case and Latin accents are ignored.
-Punctuation separates words, and query operators are treated as ordinary words.
-Results keep the same creation-time order and hotel scope. The small activity-type catalogue is returned
-in full, ordered by code; ordinary resource lists use the shared paginator.
+[Domain operations](moseby/db/operations/stays.py) combine repository methods in
+one transaction. For example, creating a stay saves the booking, party, guests
+and room reservations together. If any step fails, all of those changes roll back.
+SQL stays in the data layer.
 
-Thread, run, history and incoming-input repositories require the thread creator's
-staff member ID. Services also check current permissions before exposing those
-rows. History and input pages follow their saved sequence, using shared cursor
-handling in `pagination.py`. History reads include internal events; services
-select conversation kinds for public responses and validate payloads by kind and
-format version. A waiting run remains active, and a pending steer remains visible
-after its target run ends. These reads neither deliver input nor advance a run.
+Writes check room overlap, activity capacity, guest age and whether an activity
+fits within the stay. Guests may book overlapping activities. For this demo,
+single and twin beds sleep one person; double, queen and king beds sleep two.
+An unknown bed type contributes zero places. The party needs enough sleeping
+places throughout its stay.
 
-Job, task, claim and completion reads require the acting staff member to own the
-job and any linked thread. Request lookups use the actor, operation and request ID
-together. Claims remain readable after expiry; worker writes must check the token
-and expiry in the write itself. Completion searches show undelivered results by
-default, including results for stopped runs.
+Edits supply the last `updated_at` value or revision number they read. This lets
+the repository reject an edit if someone else changed the record first.
+[Command handling](moseby/db/operations/commands.py) saves a request, its changes
+and its response together. Repeating the same command returns the saved response.
+Permission checks still apply to a repeated request.
 
-Schedule reads include disabled definitions. Recorded occurrences keep their
-original job and thread scope after a schedule changes. Notifications and events
-are visible to their author or staff recipient within the recipient's hotel.
-Event reads resume after a saved publication sequence, allowing gaps; consumers
-track processing separately. These reads do not execute schedules or publish messages.
+Finding an available room does not reserve it: the write checks availability
+again. Checkout holds and payments still need to be added. Moving an activity
+that already has reservations is blocked until we can notify affected guests.
 
-`make test-db` exercises the reads against freshly migrated, seeded databases,
-including cross-hotel lookups, cursor boundaries, cancellation and more than 100
-keys or activity reservations.
+### Claim work and save results
 
-## Domain writes
+Jobs describe the work to do. Tasks are the pieces that workers can claim.
+A claim gives one worker a token and an expiry time. The worker must present a
+valid token when it saves results, so a worker that lost its claim cannot overwrite
+newer work.
 
-Resource repositories own SQL; [domain operations](moseby/db/operations/stays.py)
-compose them on the caller's `transaction(engine, write=True)` connection:
+Queue changes use `transaction(engine, write=True)`, which takes SQLite's write
+lock before reading the state needed for a change. Capture `now` after entering
+that transaction. Commit the claim before doing slow work or calling an external
+service. Afterward, use `task_claims.guard` to save related changes and the task
+outcome together. External services need their own duplicate-request protection.
 
-- Create a confirmed stay with its party, guests and room allocations together.
-- Update guest details and record dietary changes with their original evidence.
-- Save notes as pending, then validate and save the classifier's guest references.
-- Move or extend room allocations, and issue or deactivate reservation-bound keys.
-- Create/edit activities, reserve a whole group atomically, and cancel places.
+[Job completion](moseby/db/operations/job_completions.py) saves the outcome and a
+pending delivery together. Delivery then adds the result to thread history and
+updates its summary in one transaction. Repeated delivery returns the record
+already saved. Late results can be recorded after a run stops without restarting it.
 
-Writes check room overlap, activity capacity, guest age and stay coverage under
-SQLite's write lock. Guest activity overlaps are allowed. Room capacity comes
-from bed types: single/twin sleeps one, double/queen/king sleeps two, and unknown
-contributes zero. The party must have sufficient sleeping places throughout its
-stay; independent room occupancy limits are outside the demo.
+## Run the checks
 
-Mutable edits require the saved `updated_at`; revisioned edits require the saved
-revision. [Command execution](moseby/db/operations/commands.py) stores a request,
-its local effects and its response together, so retries replay the response.
-Services must check current permissions before calling it, including on retries.
+```sh
+make test-db
+make test-models
+make test-contracts
+make test-inference
+```
 
-Confirmed-stay creation records an accepted booking; it does not verify payment.
-Room, venue and price catalogue setup remains separate. Moving a booked activity's
-time or venue is rejected until the notification workflow can accompany it.
-These repository methods do not yet make the HTTP handlers operational.
+Database tests use freshly migrated databases with sample data. They cover hotel
+boundaries, concurrent bookings, cancellation, paging and worker claims. Inference
+tests use HTTPX's `MockTransport` to supply responses without contacting a model.
+Those tests check our request handling; model accuracy needs a separate live check.
 
-## Queue writes
+## What remains
 
-Use `transaction(engine, write=True)` and capture `now` after entering it. This
-starts SQLite's write transaction before checking mutable state. Repository
-methods share the connection and never commit on their own.
+The next step is to connect the agent loop, services and worker execution so a
+staff message can lead to a model reply and tool calls. The API routes currently
+return HTTP 501, meaning they are defined but not implemented.
 
-- `request_deduplication.accept` returns whether the command is new. Reusing its
-  actor/operation/request key with different input raises `IdempotencyConflict`.
-- For a new command, call `jobs.create`, `tasks.create` and `save_response` in that
-  same transaction. For a replay, check current permissions and return the saved
-  job or response.
-- `task_claims.claim` and `claim_next` start one attempt with a fresh token.
-  Commit before running the handler or calling an external service.
-- `renew` extends a live lease. After execution, use `task_claims.guard` around
-  related local changes and `tasks.succeed`, `fail` or `retry`. Each outcome write
-  also checks the token and expiry itself. An exception rolls back the guarded
-  group, even if the caller catches it.
+The database includes tables for schedules and notifications, but their execution
+still needs to be built. Checkout, payment handling and a user interface are also
+unfinished. Search and uniqueness constraints already have some indexes; further
+performance indexes will follow the queries that need them.
 
-A waiting run pauses agent-driving work but permits its linked tool jobs. A stop
-request blocks new attempts; already running tasks can still save evidence while
-their job remains unfinished. Local claim checks do not make external side effects
-idempotent; the integration must use its own stable effect identity.
+## Find your way around
 
-`db.operations.job_completions.finish` saves a settled job's outcome and pending
-delivery together. Every task must be terminal, and success requires all tasks to
-have succeeded. The handler decides when its workflow has reached its final phase.
-`deliver` then saves one history record, the supplied thread summary and the receipt
-together. It checks the history and projection positions used to build that summary.
-Retries return the existing outcome or record. Delivery never resumes a stopped run.
-These operations use the caller's transaction and compose the resource repositories;
-worker-driven domain changes and task outcomes belong in the same guarded transaction.
+- [API models and routes](moseby/contracts), plus the [generated OpenAPI file](openapi.yaml).
+- [Runtime message models](moseby/runtime/models/thread_records.py).
+- [Database models](moseby/db/models), [repositories](moseby/db/repositories) and
+  [operations that combine them](moseby/db/operations).
+- [Permissions and tools](docs/permissions-and-tools.md).
+- [Domain design notes](docs/data-modelling.md) and [runtime notes](docs/runtime-review.md).
+- [Checkout diagrams](docs/checkout-lifecycle.md) and [steering research](docs/steering.md).
 
-## Current contracts
-
-- [Runtime routes](moseby/contracts/runtime_api.py) cover threads, incoming input,
-  runs, jobs, schedules, occurrences and notifications. They generate the runtime
-  sections of [OpenAPI](openapi.yaml); handlers return 501 until services are wired.
-  Run their contract checks with `make test-contracts`.
-- [Runtime message models](moseby/runtime/models/thread_records.py) validate the
-  stored record kinds and payloads. [Thread contracts](moseby/contracts/threads.py)
-  and [run contracts](moseby/contracts/runs.py) define gateway representations.
-  Run their validation tests with `make test-models`.
-- [Next domain models](docs/domain-contract-review.md): review the hotel, staff,
-  booking, party, key and activity models after the approved foundation.
-- [Python contract draft](docs/python-contract.md): first Pydantic models,
-  proposed endpoint permissions and verified QUERY generation behaviour.
-- [Generated OpenAPI](openapi.yaml): domain resources and proposed endpoint permissions.
-- [Resource and API contract](docs/api-overview.md): selected conventions, resources
-  and remaining route/payload choices.
-- [Runtime contract](docs/runtime-review.md): threads, jobs/tasks, claims, records,
-  schedules and durable publication.
-- [Permissions and tools](docs/permissions-and-tools.md): accepted access boundaries
-  and the proposed operation map for the next short review.
-- [Remaining decisions](docs/design-review.md): local open choices and SQL drift.
-
-These contracts supersede older alternatives in the supporting discussion.
-Accepted rules and proposals are labelled separately; no route example silently
-selects an implementation or changes the domain model.
-
-## Supporting material
-
-- [Domain notes](docs/data-modelling.md)
-- [Checkout and room-change diagrams](docs/checkout-lifecycle.md)
-- [Earlier runtime discussion](docs/agent-runtime.md)
-- [Codex steering research](docs/steering.md)
-- [Schema guide](schema/README.md) and [older SQL draft](schema/draft.sql)
-
-The Python contract draft uses FastAPI to generate OpenAPI. Its handlers return
-501; application services, workers and the scheduler remain unimplemented.
-Repository writes cover the domain operations above, command acceptance, job/task
-creation, task attempts and job-result delivery.
-Workflow handlers, run/input transitions and schedule/notification writes remain to be built.
-The wider contracts above still distinguish accepted decisions from proposals.
+The design notes include earlier proposals as well as accepted decisions. The
+migrations define the working database; `schema/draft.sql` is an older sketch.

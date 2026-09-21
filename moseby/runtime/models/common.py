@@ -1,9 +1,10 @@
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, JsonValue
+from pydantic import BaseModel, ConfigDict, Field
+
+from moseby.json_types import JsonObject
 
 # A handler validates the specific argument or result schema for its operation.
-type JsonObject = dict[str, JsonValue]
 type ToolCallId = Annotated[str, Field(min_length=1)]
 
 
