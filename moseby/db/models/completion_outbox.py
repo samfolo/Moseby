@@ -5,6 +5,7 @@ from moseby.runtime.models.common import JsonObject
 
 from .common import Row
 from .filters import Filters, IdFilter
+from .jobs import JobRow
 
 
 class CompletionRow(Row):
@@ -25,3 +26,8 @@ class CompletionFilters(Filters):
     thread_ids: IdFilter[ThreadId] | None = None
     job_ids: IdFilter[JobId] | None = None
     pending_only: bool = True
+
+
+class CompletedJob(Row):
+    job: JobRow
+    completion: CompletionRow | None

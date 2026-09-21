@@ -1,6 +1,6 @@
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from moseby.domain.enums import ActivityPriceUnit
 from moseby.identifiers import ActivityId, PriceId, VenueId
@@ -45,3 +45,27 @@ class ActivityFilters(Filters):
     types: IdFilter[ActivityTypeCode] | None = None
     date_range: DateRange | None = None
     places_required: int | None = Field(default=None, ge=1)
+
+
+class ActivityValues(Row):
+    venue_id: VenueId
+    title: str = Field(min_length=1)
+    type: ActivityTypeCode
+    description: str
+    date_range: DateRange
+    capacity: int | None = Field(ge=0)
+    min_booking_size: int = Field(ge=1)
+    max_booking_size: int = Field(ge=1)
+    minimum_age: int = Field(ge=0)
+    price_id: PriceId
+    price_unit: ActivityPriceUnit = ActivityPriceUnit.PER_GUEST
+
+    @model_validator(mode="after")
+    def check_booking_size(self) -> Self:
+        if self.min_booking_size > self.max_booking_size:
+            raise ValueError("minimum booking size must not exceed maximum")
+        return self
+
+
+class NewActivity(ActivityValues):
+    id: ActivityId

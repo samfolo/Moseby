@@ -1,15 +1,19 @@
-"""Read threads belonging to the supplied thread creator."""
+"""Read threads and advance their saved summaries within the creator's scope."""
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, Select, select
+from sqlalchemy import Connection, Select, func, select, update
 
 from moseby.identifiers import StaffMemberId, ThreadId
 
-from ..models.threads import ThreadRow
+from ..errors import RepositoryInvariantError, WriteConflict
+from ..models.threads import ProjectionUpdate, ThreadRow
 from ..pagination import Page, PageRequest, read_page
-from ..tables import threads
+from ..tables import thread_records, threads
 from ._queries import unique_ids
+from ._writes import encode_canonical_json, require_write_transaction
+
+# Reads
 
 
 def _select(creator_staff_member_id: StaffMemberId) -> Select:
@@ -83,3 +87,51 @@ def find_all(
         query="threads.find_all",
         criteria={"creator_staff_member_id": creator_staff_member_id},
     )
+
+
+# Writes
+
+
+def save_projection(
+    connection: Connection,
+    id: ThreadId,
+    projection: ProjectionUpdate,
+    *,
+    creator_staff_member_id: StaffMemberId,
+    now: int,
+) -> ThreadRow:
+    """Advance the summary after appending the next record to the expected history.
+
+    Reject a changed projection or history position. The runtime supplies the
+    summary content; save it together with the record it describes.
+    """
+    require_write_transaction(connection)
+    encode_canonical_json(projection.value)
+    sequence = projection.expected_history_sequence + 1
+    head = (
+        select(func.max(thread_records.c.sequence))
+        .where(thread_records.c.thread_id == id)
+        .scalar_subquery()
+    )
+    changed = connection.execute(
+        update(threads)
+        .where(
+            threads.c.id == id,
+            threads.c.creator_staff_member_id == creator_staff_member_id,
+            threads.c.projection_sequence == projection.expected_sequence,
+            threads.c.updated_at <= now,
+            head == sequence,
+        )
+        .values(
+            projection_sequence=sequence,
+            projection_format_version=projection.format_version,
+            projection_json=projection.value,
+            updated_at=now,
+        )
+    ).rowcount
+    if changed != 1:
+        raise WriteConflict("The thread's projection or history has changed")
+    saved = find_by_id(connection, id, creator_staff_member_id=creator_staff_member_id)
+    if saved is None:
+        raise RepositoryInvariantError("The thread projection could not be read back")
+    return saved

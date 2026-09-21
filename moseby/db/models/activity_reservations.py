@@ -1,3 +1,7 @@
+from typing import Self
+
+from pydantic import Field, model_validator
+
 from moseby.domain.enums import ActivityPriceUnit
 from moseby.identifiers import (
     ActivityId,
@@ -49,3 +53,23 @@ class ActivityReservationFilters(Filters):
     date_range: DateRange | None = None
     effective: bool | None = True
     cancelled: bool | None = None
+
+
+class ActivityAttendee(Row):
+    id: ActivityReservationId
+    guest_id: GuestId
+
+
+class ReserveActivity(Row):
+    """Reserve one place per guest as one atomic group request."""
+
+    activity_id: ActivityId
+    attendees: list[ActivityAttendee] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def check_unique(self) -> Self:
+        if len({item.id for item in self.attendees}) != len(self.attendees):
+            raise ValueError("reservation IDs must be unique")
+        if len({item.guest_id for item in self.attendees}) != len(self.attendees):
+            raise ValueError("each guest may appear only once")
+        return self

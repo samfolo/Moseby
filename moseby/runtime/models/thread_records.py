@@ -198,6 +198,7 @@ type ThreadRecord = Annotated[
     Field(discriminator="kind"),
 ]
 
+# Select the record model by its kind, then validate its fields and payload.
 thread_record_adapter = TypeAdapter(ThreadRecord)
 
 

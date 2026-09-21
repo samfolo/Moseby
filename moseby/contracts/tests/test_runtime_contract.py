@@ -192,7 +192,7 @@ class RuntimeContractTests(unittest.TestCase):
             with self.subTest(field=field), self.assertRaises(ValidationError):
                 CreateJobRequest(request_id="job-1", payload=payload | {field: value})
 
-    def test_job_completion_and_tool_links_remain_consistent(self):
+    def test_job_completions_and_tool_links_remain_consistent(self):
         """Job responses reject incomplete runtime links and completion details."""
         job = dict(
             id=identifier("job"),

@@ -1,10 +1,12 @@
-"""Read keys and check their access against the stay at a supplied time."""
+"""Issue and revoke keys whose access follows their reservation."""
 
-from sqlalchemy import Connection, Select, and_, select
+from sqlalchemy import Connection, Select, and_, insert, select
+from sqlalchemy import update as sql_update
 
 from moseby.domain.enums import BookingStatus
 from moseby.identifiers import BookingId, HotelId, RoomKeyId, RoomReservationId
 
+from ..errors import IdempotencyConflict, WriteConflict
 from ..models.room_keys import RoomKeyRow
 from ..pagination import Page, PageRequest, read_page
 from ..tables import (
@@ -14,7 +16,10 @@ from ..tables import (
     room_reservation_revisions,
     room_reservations,
 )
+from . import bookings as bookings_repository
+from . import room_reservations as reservations_repository
 from ._queries import latest_revision
+from ._writes import require_found, require_reason, require_write_transaction
 
 
 def _select(hotel_id: HotelId, now: int) -> Select:
@@ -141,3 +146,70 @@ def find_all_by_room_reservation_id(
         query="room_keys.find_all_by_room_reservation_id",
         criteria={"hotel_id": hotel_id, "room_reservation_id": room_reservation_id},
     )
+
+
+# Writes
+
+
+def issue(
+    connection: Connection,
+    id: RoomKeyId,
+    room_reservation_id: RoomReservationId,
+    *,
+    hotel_id: HotelId,
+    code: str | None = None,
+    now: int,
+) -> RoomKeyRow:
+    """Issue a key for an uncancelled reservation on a confirmed stay, including a future stay."""
+    require_write_transaction(connection)
+    reservation = require_found(
+        reservations_repository.find_by_id(
+            connection, room_reservation_id, hotel_id=hotel_id
+        )
+    )
+    booking = require_found(
+        bookings_repository.find_by_id(
+            connection, reservation.booking_id, hotel_id=hotel_id
+        )
+    )
+    if (
+        reservation.cancelled
+        or booking.status != BookingStatus.CONFIRMED
+        or now < max(reservation.created_at, booking.updated_at)
+    ):
+        raise WriteConflict("A key requires a valid reservation and booking")
+    if now >= reservation.max_date:
+        raise WriteConflict("A key cannot be issued after the reservation ends")
+    connection.execute(
+        insert(room_keys).values(
+            id=id,
+            room_reservation_id=room_reservation_id,
+            code=code,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    return require_found(find_by_id(connection, id, hotel_id=hotel_id, now=now))
+
+
+def deactivate(
+    connection: Connection, id: RoomKeyId, *, reason: str, hotel_id: HotelId, now: int
+) -> RoomKeyRow:
+    """Revoke a key permanently; repeating the same reason returns the saved revocation."""
+    require_write_transaction(connection)
+    require_reason(reason)
+    saved = require_found(find_by_id(connection, id, hotel_id=hotel_id, now=now))
+    if saved.deactivated_at is not None:
+        if saved.deactivation_reason != reason:
+            raise IdempotencyConflict(
+                "The key already has a different revocation reason"
+            )
+        return saved
+    if now < saved.updated_at:
+        raise WriteConflict("Deactivation cannot precede the key's last change")
+    connection.execute(
+        sql_update(room_keys)
+        .where(room_keys.c.id == id)
+        .values(deactivated_at=now, deactivation_reason=reason, updated_at=now)
+    )
+    return require_found(find_by_id(connection, id, hotel_id=hotel_id, now=now))

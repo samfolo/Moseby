@@ -2,15 +2,16 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, Select, insert, select
+from sqlalchemy import Connection, Select, insert, null, or_, select, update
 
 from moseby.identifiers import JobId, RunId, StaffMemberId, ThreadId, ThreadRecordId
-from moseby.runtime.enums import JobStatus
+from moseby.runtime.enums import JobStatus, TaskStatus
+from moseby.runtime.models.job_outcomes import JobOutcome
 
-from ..errors import RepositoryInvariantError, WriteConflict
+from ..errors import IdempotencyConflict, RepositoryInvariantError, WriteConflict
 from ..models.jobs import JobFilters, JobRow, NewJob
 from ..pagination import Page, PageRequest, read_page
-from ..tables import jobs, threads
+from ..tables import jobs, tasks, threads
 from ._queries import unique_ids
 from ._thread_queries import owned_thread_ids
 from ._work_queries import job_scope
@@ -246,3 +247,77 @@ def create(connection: Connection, values: NewJob, *, now: int) -> JobRow:
     if saved is None:
         raise RepositoryInvariantError("The created job could not be read back")
     return saved
+
+
+def finish(
+    connection: Connection,
+    id: JobId,
+    outcome: JobOutcome,
+    *,
+    expected_phase: str,
+    actor_staff_member_id: StaffMemberId,
+    now: int,
+) -> JobRow:
+    """Finish a settled job, returning its saved outcome on an identical retry.
+
+    All tasks must be terminal; success additionally requires every task to have
+    succeeded. The caller decides whether the workflow has any further phases.
+    Pair this write with its completion entry in the same transaction.
+    """
+    require_write_transaction(connection)
+    payload = outcome.model_dump(mode="json")
+    encode_canonical_json(payload)
+    saved = find_by_id(connection, id, actor_staff_member_id=actor_staff_member_id)
+    if saved is None:
+        raise WriteConflict("The job is missing or inaccessible")
+    if saved.finished_at is not None:
+        previous = {
+            "status": saved.status.value,
+            "result": saved.result,
+            "error": saved.error,
+        }
+        if encode_canonical_json(previous) != encode_canonical_json(payload):
+            raise IdempotencyConflict("The job already has a different outcome")
+        return saved
+
+    # Keep unfinished branches from being hidden behind a completed parent.
+    blockers = select(tasks.c.id).where(tasks.c.job_id == id)
+    if outcome.status == JobStatus.SUCCEEDED:
+        blockers = blockers.where(
+            or_(tasks.c.status != TaskStatus.SUCCEEDED, tasks.c.updated_at > now)
+        )
+    else:
+        blockers = blockers.where(
+            or_(
+                tasks.c.status.in_(
+                    (TaskStatus.READY, TaskStatus.RUNNING, TaskStatus.WAITING)
+                ),
+                tasks.c.updated_at > now,
+            )
+        )
+    changed = connection.execute(
+        update(jobs)
+        .where(
+            jobs.c.id == id,
+            job_scope(actor_staff_member_id),
+            jobs.c.phase == expected_phase,
+            jobs.c.finished_at.is_(None),
+            jobs.c.updated_at <= now,
+            ~blockers.exists(),
+        )
+        .values(
+            status=outcome.status.value,
+            result_json=outcome.result if outcome.result is not None else null(),
+            error_json=payload["error"] if payload["error"] is not None else null(),
+            finished_at=now,
+            updated_at=now,
+        )
+    ).rowcount
+    if changed != 1:
+        raise WriteConflict(
+            "The job phase changed, tasks remain unsettled, or the timestamp is stale"
+        )
+    result = find_by_id(connection, id, actor_staff_member_id=actor_staff_member_id)
+    if result is None:
+        raise RepositoryInvariantError("The finished job could not be read back")
+    return result

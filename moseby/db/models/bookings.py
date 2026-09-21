@@ -1,3 +1,5 @@
+from pydantic import Field
+
 from moseby.domain.enums import BookingStatus
 from moseby.identifiers import BookingId, HotelId
 
@@ -15,3 +17,10 @@ class BookingRow(Row):
     revision: int
     status: StoredEnum[BookingStatus]
     cancellation_reason: str | None
+
+
+class NewBooking(Row):
+    """Identity and name for creating a confirmed booking."""
+
+    id: BookingId
+    name: str = Field(min_length=1)

@@ -1,15 +1,24 @@
-"""Read bookings within the hotel scope supplied by the service."""
+"""Read confirmed stays and append their lifecycle changes."""
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, Select, and_, select
+from sqlalchemy import Connection, Select, and_, insert, select
+from sqlalchemy import update as sql_update
 
+from moseby.domain.enums import BookingStatus
 from moseby.identifiers import BookingId, HotelId
 
-from ..models.bookings import BookingRow
+from ..errors import WriteConflict
+from ..models.bookings import BookingRow, NewBooking
 from ..pagination import Page, PageRequest, read_page
 from ..tables import booking_revisions, bookings
 from ._queries import latest_revision, unique_ids
+from ._writes import (
+    check_revision,
+    require_found,
+    require_reason,
+    require_write_transaction,
+)
 
 
 def _select(hotel_id: HotelId) -> Select:
@@ -90,4 +99,104 @@ def find_all(
         page=page or PageRequest(),
         query="bookings.find_all",
         criteria={"hotel_id": hotel_id},
+    )
+
+
+# Writes
+
+
+def create(
+    connection: Connection, values: NewBooking, *, hotel_id: HotelId, now: int
+) -> BookingRow:
+    """Start a confirmed booking; the caller adds its party and rooms in this transaction."""
+    require_write_transaction(connection)
+    with connection.begin_nested():
+        connection.execute(
+            insert(bookings).values(
+                **values.model_dump(), hotel_id=hotel_id, created_at=now, updated_at=now
+            )
+        )
+        connection.execute(
+            insert(booking_revisions).values(
+                booking_id=values.id,
+                revision=1,
+                status=BookingStatus.CONFIRMED,
+                created_at=now,
+            )
+        )
+        return require_found(find_by_id(connection, values.id, hotel_id=hotel_id))
+
+
+def _finish(
+    connection: Connection,
+    id: BookingId,
+    status: BookingStatus,
+    *,
+    expected_revision: int,
+    reason: str | None,
+    hotel_id: HotelId,
+    now: int,
+) -> BookingRow:
+    require_write_transaction(connection)
+    saved = require_found(find_by_id(connection, id, hotel_id=hotel_id))
+    check_revision(saved.revision, expected_revision)
+    if saved.status != BookingStatus.CONFIRMED or now < saved.updated_at:
+        raise WriteConflict(
+            "Only a confirmed booking can finish, at a current timestamp"
+        )
+    with connection.begin_nested():
+        connection.execute(
+            insert(booking_revisions).values(
+                booking_id=id,
+                revision=saved.revision + 1,
+                status=status,
+                cancellation_reason=reason,
+                created_at=now,
+            )
+        )
+        connection.execute(
+            sql_update(bookings).where(bookings.c.id == id).values(updated_at=now)
+        )
+        return require_found(find_by_id(connection, id, hotel_id=hotel_id))
+
+
+def cancel(
+    connection: Connection,
+    id: BookingId,
+    *,
+    expected_revision: int,
+    reason: str,
+    hotel_id: HotelId,
+    now: int,
+) -> BookingRow:
+    """Cancel the stay permanently; derived access and activity capacity change with it."""
+    require_reason(reason)
+    return _finish(
+        connection,
+        id,
+        BookingStatus.CANCELLED,
+        expected_revision=expected_revision,
+        reason=reason,
+        hotel_id=hotel_id,
+        now=now,
+    )
+
+
+def complete(
+    connection: Connection,
+    id: BookingId,
+    *,
+    expected_revision: int,
+    hotel_id: HotelId,
+    now: int,
+) -> BookingRow:
+    """Complete a stay, disabling room access while preserving activity history."""
+    return _finish(
+        connection,
+        id,
+        BookingStatus.COMPLETED,
+        expected_revision=expected_revision,
+        reason=None,
+        hotel_id=hotel_id,
+        now=now,
     )

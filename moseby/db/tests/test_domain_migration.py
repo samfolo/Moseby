@@ -427,7 +427,7 @@ class DomainMigrationTests(unittest.TestCase):
                 (1, 0),
             )
 
-    def test_party_reference_membership_and_classification(self):
+    def test_party_reference_membership_and_resolution_status(self):
         """Only resolved notes may reference guests, all distinct party members."""
         with transaction(self.engine, write=True) as connection:
             self.seed(connection)

@@ -1,6 +1,6 @@
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field
+from pydantic import Field, model_validator
 
 from moseby.domain.enums import GuestReferenceStatus
 from moseby.identifiers import GuestId, PartyDetailId, PartyId
@@ -28,3 +28,24 @@ class PartyDetailFilters(Filters):
     party_ids: IdFilter[PartyId]
     guest_ids: IdFilter[GuestId] | None = None
     text: str | None = Field(default=None, min_length=1)
+
+
+class NewPartyDetail(Row):
+    id: PartyDetailId
+    party_id: PartyId
+    text: str = Field(min_length=1)
+
+
+class GuestReferences(Row):
+    """Guest references and their resolution status for one party note."""
+
+    status: GuestReferenceStatus
+    guest_ids: list[GuestId] = Field(default_factory=list, max_length=100)
+
+    @model_validator(mode="after")
+    def check_references(self) -> Self:
+        if len(set(self.guest_ids)) != len(self.guest_ids):
+            raise ValueError("guest references must be unique")
+        if self.status != GuestReferenceStatus.RESOLVED and self.guest_ids:
+            raise ValueError("only resolved references may identify guests")
+        return self

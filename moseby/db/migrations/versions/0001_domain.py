@@ -330,7 +330,7 @@ def _create_booking_and_guest_tables() -> None:
             nullable=False,
         ),
         sa.Column("text", sa.Text(), nullable=False),
-        # Classifier-selected guests from this party; the original text is evidence.
+        # Guest references belonging to this party; the original text is evidence.
         sa.Column("referenced_guest_ids_json", sa.Text(), nullable=False),
         sa.Column("reference_format_version", sa.Integer(), nullable=False),
         sa.Column("reference_status", sa.Text(), nullable=False),
@@ -745,7 +745,7 @@ def _create_membership_rules() -> None:
                 THEN RAISE(ABORT, 'Guest references must be unique')
             END;
 
-            -- Keep references empty until classification resolves them.
+            -- Only resolved references can contain guest IDs.
             SELECT CASE
                 WHEN NEW.reference_status != 'GUEST_REFERENCE_STATUS_RESOLVED'
                   AND json_array_length(NEW.referenced_guest_ids_json) != 0

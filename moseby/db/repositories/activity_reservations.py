@@ -1,7 +1,8 @@
-"""Read guest itineraries within a hotel and count shared activity places."""
+"""Reserve and cancel guest places within a hotel."""
 
-from sqlalchemy import Connection, Select, and_, select
+from sqlalchemy import Connection, Select, and_, insert, select
 
+from moseby.domain.enums import BookingStatus
 from moseby.identifiers import (
     ActivityId,
     ActivityReservationId,
@@ -10,13 +11,33 @@ from moseby.identifiers import (
     PartyId,
 )
 
+from ..errors import ActivityAlreadyReserved, WriteConflict
 from ..models.activity_reservations import (
     ActivityReservationFilters,
     ActivityReservationRow,
+    ReserveActivity,
 )
+from ..models.filters import DateRange
 from ..pagination import Page, PageRequest, read_page
-from ..tables import activities, activity_reservations, price_versions
+from ..tables import (
+    activities,
+    activity_reservation_revisions,
+    activity_reservations,
+    price_versions,
+)
+from . import activities as activities_repository
+from . import bookings as bookings_repository
+from . import guests as guests_repository
+from . import parties as parties_repository
 from ._activity_queries import current_reservations, effective_count
+from ._stay_queries import require_coverage
+from ._writes import (
+    check_history_time,
+    check_revision,
+    require_found,
+    require_reason,
+    require_write_transaction,
+)
 
 
 def _select(hotel_id: HotelId) -> Select:
@@ -168,3 +189,151 @@ def count_effective_by_activity_id(
     This complete count is independent of pagination; it does not reserve places.
     """
     return connection.execute(select(effective_count(activity_id))).scalar_one()
+
+
+# Writes
+
+
+def reserve(
+    connection: Connection, values: ReserveActivity, *, hotel_id: HotelId, now: int
+) -> list[ActivityReservationRow]:
+    """Reserve the whole group or none of it, checking age, stay coverage and capacity.
+
+    Guests can come from different parties in this hotel. Overlapping activities
+    are allowed; a second effective place for the same guest and event is not.
+    """
+    require_write_transaction(connection)
+
+    # Check the event and group size while competing reservation writes are held back.
+    activity = require_found(
+        activities_repository.find_by_id(connection, values.activity_id)
+    )
+    count = len(values.attendees)
+    if not activity.min_booking_size <= count <= activity.max_booking_size:
+        raise WriteConflict("The group does not fit this activity's booking size")
+    if now >= activity.min_date:
+        raise WriteConflict("The activity has already started")
+
+    # Resolve every attendee inside this hotel before reporting any saved reservations.
+    people = guests_repository.find_by_ids(
+        connection, [item.guest_id for item in values.attendees], hotel_id=hotel_id
+    )
+    if len(people) != count:
+        raise WriteConflict("Every attendee must be a guest in this hotel")
+
+    # Use current effective rows so cancelled places and old revisions do not count.
+    current = current_reservations().subquery()
+    duplicates = connection.execute(
+        select(current.c.guest_id, current.c.id)
+        .where(
+            current.c.hotel_id == hotel_id,
+            current.c.activity_id == activity.id,
+            current.c.guest_id.in_(people),
+            current.c.effective.is_(True),
+        )
+        .order_by(current.c.guest_id)
+    )
+    reservations_by_guest = {guest_id: id for guest_id, id in duplicates}
+    if reservations_by_guest:
+        raise ActivityAlreadyReserved(activity.id, reservations_by_guest)
+
+    # All requested guests need new places; the count includes attendees from every hotel.
+    if (
+        activity.capacity is not None
+        and activity.reserved_places + count > activity.capacity
+    ):
+        raise WriteConflict("The activity has insufficient remaining places")
+
+    # Each guest needs an eligible booking, sufficient age and rooms covering the event.
+    for person in people.values():
+        party = require_found(
+            parties_repository.find_by_id(
+                connection, person.party_id, hotel_id=hotel_id
+            )
+        )
+        booking = require_found(
+            bookings_repository.find_by_id(
+                connection, party.booking_id, hotel_id=hotel_id
+            )
+        )
+        if booking.status != BookingStatus.CONFIRMED or now < max(
+            booking.updated_at, person.updated_at, activity.updated_at
+        ):
+            raise WriteConflict(
+                "New activity reservations require a confirmed stay and current timestamp"
+            )
+        if person.age < activity.minimum_age:
+            raise WriteConflict("A guest does not meet the activity's minimum age")
+        require_coverage(
+            connection,
+            booking.id,
+            DateRange(min_date=activity.min_date, max_date=activity.max_date),
+        )
+
+    # Save the entire group together, even if the caller catches a later insert failure.
+    with connection.begin_nested():
+        for item in values.attendees:
+            connection.execute(
+                insert(activity_reservations).values(
+                    id=item.id,
+                    guest_id=item.guest_id,
+                    party_id=people[item.guest_id].party_id,
+                    activity_id=activity.id,
+                    created_at=now,
+                )
+            )
+            # Pin the rate accepted now so later price changes preserve this agreement.
+            connection.execute(
+                insert(activity_reservation_revisions).values(
+                    activity_reservation_id=item.id,
+                    revision=1,
+                    cancelled=False,
+                    price_id=activity.price_id,
+                    price_revision=activity.price_revision,
+                    price_unit=activity.price_unit,
+                    created_at=now,
+                )
+            )
+        return [
+            require_found(find_by_id(connection, item.id, hotel_id=hotel_id))
+            for item in values.attendees
+        ]
+
+
+def cancel(
+    connection: Connection,
+    id: ActivityReservationId,
+    *,
+    expected_revision: int,
+    reason: str,
+    hotel_id: HotelId,
+    now: int,
+) -> ActivityReservationRow:
+    """Cancel one guest's place permanently without changing the rest of their group."""
+    require_write_transaction(connection)
+    require_reason(reason)
+
+    # The caller must cancel the revision it read, at a time consistent with its history.
+    saved = require_found(find_by_id(connection, id, hotel_id=hotel_id))
+    check_revision(saved.revision, expected_revision)
+    check_history_time(
+        connection, activity_reservation_revisions, "activity_reservation_id", id, now
+    )
+    if saved.cancelled or now < saved.created_at:
+        raise WriteConflict(
+            "The reservation is already cancelled or the timestamp is stale"
+        )
+    # Append the cancellation with the original rate; current-state reads release the place.
+    connection.execute(
+        insert(activity_reservation_revisions).values(
+            activity_reservation_id=id,
+            revision=saved.revision + 1,
+            cancelled=True,
+            cancellation_reason=reason,
+            price_id=saved.price_id,
+            price_revision=saved.price_revision,
+            price_unit=saved.price_unit,
+            created_at=now,
+        )
+    )
+    return require_found(find_by_id(connection, id, hotel_id=hotel_id))

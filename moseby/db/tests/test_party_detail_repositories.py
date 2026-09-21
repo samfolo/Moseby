@@ -39,8 +39,8 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
                     reference_status=f"GUEST_REFERENCE_STATUS_{status}",
                 )
 
-    def test_json_references_are_typed_and_classification_outcomes_stay_distinct(self):
-        """Reads decode saved guest IDs and preserve each classification outcome."""
+    def test_json_references_are_typed_and_resolution_statuses_stay_distinct(self):
+        """Reading a note returns its saved guest IDs and resolution status."""
         with transaction(self.engine) as connection:
             rows = party_details.find_all_by_party_id(
                 connection, identifier("party"), hotel_id=identifier("hotel")

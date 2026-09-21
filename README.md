@@ -1,9 +1,9 @@
 # Moseby
 
 A Python experiment in proactive, staff-facing resort operations.
-The project has reviewed gateway contracts, hand-authored migrations and the first
-read repositories, plus command acceptance and task-claim writes. Gateway handlers
-and runtime workers remain to be implemented.
+The project has reviewed gateway contracts, hand-authored migrations, domain
+repositories, and durable job/task storage. Gateway handlers and the agent turn
+loop remain to be connected.
 
 ## Formatting and linting
 
@@ -30,7 +30,7 @@ schema. The first migration covers domain tables and immutable revision history.
 The second covers threads, records, queued work, schedules and notification
 publication. The third adds cancellation of pending user input. The fourth adds
 FTS5 keyword search for party evidence, kept in sync by database triggers.
-Checkout storage and repository mutations remain to be implemented.
+Checkout storage and payment handling remain to be implemented.
 Other performance indexes are deferred until we review the queries; primary-key and
 uniqueness indexes enforce data rules already, including one active run per thread.
 `schema/draft.sql` is historical and is not used to initialize the database.
@@ -138,6 +138,33 @@ track processing separately. These reads do not execute schedules or publish mes
 including cross-hotel lookups, cursor boundaries, cancellation and more than 100
 keys or activity reservations.
 
+## Domain writes
+
+Resource repositories own SQL; [domain operations](moseby/db/operations/stays.py)
+compose them on the caller's `transaction(engine, write=True)` connection:
+
+- Create a confirmed stay with its party, guests and room allocations together.
+- Update guest details and record dietary changes with their original evidence.
+- Save notes as pending, then validate and save the classifier's guest references.
+- Move or extend room allocations, and issue or deactivate reservation-bound keys.
+- Create/edit activities, reserve a whole group atomically, and cancel places.
+
+Writes check room overlap, activity capacity, guest age and stay coverage under
+SQLite's write lock. Guest activity overlaps are allowed. Room capacity comes
+from bed types: single/twin sleeps one, double/queen/king sleeps two, and unknown
+contributes zero. The party must have sufficient sleeping places throughout its
+stay; independent room occupancy limits are outside the demo.
+
+Mutable edits require the saved `updated_at`; revisioned edits require the saved
+revision. [Command execution](moseby/db/operations/commands.py) stores a request,
+its local effects and its response together, so retries replay the response.
+Services must check current permissions before calling it, including on retries.
+
+Confirmed-stay creation records an accepted booking; it does not verify payment.
+Room, venue and price catalogue setup remains separate. Moving a booked activity's
+time or venue is rejected until the notification workflow can accompany it.
+These repository methods do not yet make the HTTP handlers operational.
+
 ## Queue writes
 
 Use `transaction(engine, write=True)` and capture `now` after entering it. This
@@ -158,10 +185,17 @@ methods share the connection and never commit on their own.
 
 A waiting run pauses agent-driving work but permits its linked tool jobs. A stop
 request blocks new attempts; already running tasks can still save evidence while
-their job remains unfinished. These writes do not resume runs or decide when a
-whole job has finished. Job coordination, completion delivery and schedule and
-notification writes are the next layers. Local claim checks do not make external
-side effects idempotent; the integration must use its own stable effect identity.
+their job remains unfinished. Local claim checks do not make external side effects
+idempotent; the integration must use its own stable effect identity.
+
+`db.operations.job_completions.finish` saves a settled job's outcome and pending
+delivery together. Every task must be terminal, and success requires all tasks to
+have succeeded. The handler decides when its workflow has reached its final phase.
+`deliver` then saves one history record, the supplied thread summary and the receipt
+together. It checks the history and projection positions used to build that summary.
+Retries return the existing outcome or record. Delivery never resumes a stopped run.
+These operations use the caller's transaction and compose the resource repositories;
+worker-driven domain changes and task outcomes belong in the same guarded transaction.
 
 ## Current contracts
 
@@ -200,5 +234,7 @@ selects an implementation or changes the domain model.
 
 The Python contract draft uses FastAPI to generate OpenAPI. Its handlers return
 501; application services, workers and the scheduler remain unimplemented.
-Repository writes currently cover command acceptance, job/task creation and task attempts.
+Repository writes cover the domain operations above, command acceptance, job/task
+creation, task attempts and job-result delivery.
+Workflow handlers, run/input transitions and schedule/notification writes remain to be built.
 The wider contracts above still distinguish accepted decisions from proposals.

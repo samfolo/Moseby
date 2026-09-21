@@ -3,23 +3,19 @@
 from collections.abc import Sequence
 
 from sqlalchemy import Connection, Select, and_, func, select
-from sqlalchemy.sql.selectable import Exists
 
-from moseby.domain.enums import BookingStatus, RoomServiceStatus
+from moseby.domain.enums import RoomServiceStatus
 from moseby.identifiers import HotelId, RoomId
 
-from ..models.filters import DateRange
 from ..models.rooms import BedRow, RoomFilters, RoomRow
 from ..pagination import Page, PageRequest, read_page
 from ..tables import (
     beds,
-    booking_revisions,
     price_versions,
-    room_reservation_revisions,
-    room_reservations,
     rooms,
 )
 from ._queries import latest_revision, unique_ids
+from ._room_queries import overlapping_reservation
 
 
 def _select(hotel_id: HotelId) -> Select:
@@ -111,52 +107,6 @@ def find_all(
     return search(connection, RoomFilters(), hotel_id=hotel_id, page=page)
 
 
-def _overlapping_reservation(date_range: DateRange) -> Exists:
-    """Check for any uncancelled allocation on a confirmed booking for this room.
-
-    Read only the latest reservation dates and booking status. Touching endpoints
-    are allowed: a stay can start exactly when the preceding stay ends.
-    """
-    revision = room_reservation_revisions.c
-    return (
-        select(1)
-        .select_from(room_reservations)
-        .join(
-            room_reservation_revisions,
-            and_(
-                revision.room_reservation_id == room_reservations.c.id,
-                revision.revision
-                == latest_revision(
-                    room_reservation_revisions,
-                    revision.room_reservation_id,
-                    room_reservations.c.id,
-                ),
-            ),
-        )
-        .join(
-            booking_revisions,
-            and_(
-                booking_revisions.c.booking_id == room_reservations.c.booking_id,
-                booking_revisions.c.revision
-                == latest_revision(
-                    booking_revisions,
-                    booking_revisions.c.booking_id,
-                    room_reservations.c.booking_id,
-                ),
-            ),
-        )
-        .where(
-            room_reservations.c.room_id == rooms.c.id,
-            revision.cancelled.is_(False),
-            booking_revisions.c.status == BookingStatus.CONFIRMED.value,
-            revision.min_date < date_range.max_date,
-            revision.max_date > date_range.min_date,
-        )
-        .correlate(rooms)
-        .exists()
-    )
-
-
 def _search_statement(hotel_id: HotelId, filters: RoomFilters) -> Select:
     """Apply all filters to one row per room before ordering or limiting the query.
 
@@ -209,7 +159,7 @@ def _search_statement(hotel_id: HotelId, filters: RoomFilters) -> Select:
     if filters.availability_date_range is not None:
         statement = statement.where(
             rooms.c.in_service.is_(True),
-            ~_overlapping_reservation(filters.availability_date_range),
+            ~overlapping_reservation(filters.availability_date_range),
         )
     return statement
 

@@ -1,6 +1,9 @@
+from pydantic import Field
+
 from moseby.identifiers import BookingId, PriceId, RoomId, RoomReservationId
 
 from .common import Row
+from .filters import DateRange
 
 
 class RoomReservationRow(Row):
@@ -19,3 +22,15 @@ class RoomReservationRow(Row):
     price_revision: int
     amount_minor: int
     currency: str
+
+
+class RoomReservationValues(Row):
+    date_range: DateRange
+    price_id: PriceId
+    price_revision: int = Field(ge=1)
+
+
+class NewRoomReservation(RoomReservationValues):
+    id: RoomReservationId
+    booking_id: BookingId
+    room_id: RoomId
