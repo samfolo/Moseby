@@ -2,6 +2,10 @@
 
 A Python concierge agent for resort staff.
 
+An experiment in helping staff turn guest requests into actions they can check.
+The model chooses tools; the application checks permissions and saves the outcomes.
+Staff remain the point of contact with guests.
+
 ## Start here
 
 Requires Python 3.14 and an OpenRouter API key. Run these from the repository root:
@@ -17,7 +21,8 @@ Add your key to `.env`. The example uses **DeepSeek V4.1 Flash** for generation 
 
 Settings come from `OPENROUTER_API_KEY`, `MOSEBY_GENERATION_MODEL` and
 `MOSEBY_CLASSIFICATION_MODEL`. Supply them through your launch environment,
-or load `.env` into your shell:
+or load `.env` into your shell. Optional `MOSEBY_REASONING_EFFORT` defaults to `low`;
+`MOSEBY_MAX_OUTPUT_TOKENS` defaults to 4096, shared by reasoning and the visible reply:
 
 ```sh
 set -a
@@ -52,6 +57,7 @@ Run `.venv/bin/python -m moseby --help` for command options.
 
 - `.env` and the default `moseby.db` are ignored by Git. `.env` is loaded by your shell, not automatically by the app. Reload it and restart chat after changing models.
 - `init` adds missing demo data and preserves existing rows. To use another database, put `--database PATH` before `init` or `chat`.
+- Each user message starts a new run. Its token budget counts uncached input and all output; cached reads are tracked separately.
 - Threads retain the permissions they were created with. Start a new chat after adding tools that need new permissions.
 - This is a local, single-staff demo. Some HTTP routes are contract stubs. Background scheduling and automatic recovery after a process crash are unfinished.
 - Dates use UTC unless an explicit timezone is supplied. Local tests use simulated model replies and need no API key.
