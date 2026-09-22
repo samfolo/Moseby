@@ -34,7 +34,7 @@ Room, bed and activity configuration belong to a separate back-office profile.
 - **Tool output:** compare concise tables or text with JSON for model-facing results. Measure token use and task accuracy while preserving IDs, versions, amounts and pagination; keep the HTTP contract structured.
 - **Tool errors:** separate the problem, affected resources and suggested next action; review errors across the full tool set.
 - **Guest-reference quality:** evaluate clear full names as well as shared first names; avoid creating duplicate notes when matching remains uncertain.
-- **Guest-reference corrections:** let staff clarify an existing note and rerun classification while retaining the original evidence and previous decision.
+- **Guest-reference corrections:** find the note through party-scoped search, using its returned ID, text and timestamp. Ask staff to choose when several notes fit. Recheck access and the saved version before applying a correction; retain the original evidence and previous decision.
 - **Documentation:** keep setup instructions short, clearly distinguish the working demo from planned features, and revisit older design notes before public release.
 
 Sources: the CLI transcript reviews, the guest-reference review, and the README discussion.
@@ -42,7 +42,7 @@ Sources: the CLI transcript reviews, the guest-reference review, and the README 
 ## Durable execution and proactivity
 
 - **Background inference:** run model work independently of the client connection. Python can support this; the current loop simply awaits the response.
-- **Restart recovery:** resume unfinished jobs and runs, reclaim expired claims, and apply bounded retries with exponential backoff and jitter. Treat uncertain external outcomes carefully before retrying.
+- **Restart recovery:** scan unfinished jobs and runs on startup and periodically afterwards, so claims that expire after startup are picked up too. Reclaim only expired or unowned tasks, using fresh claim tokens. Deliver saved completions before repeating work, and use bounded retries with exponential backoff and jitter. Treat uncertain external outcomes carefully before retrying.
 - **Streaming:** replace the request-wait indicator with provider-reported reasoning/answer phases as they arrive. Retain response events with a cursor so reconnecting clients can catch up without losing chunks.
 - **Steering and cancellation:** connect queued input, assertive delivery, cancellation and wake-up rules to the running engine and user-facing API.
 - **Scheduling:** select a cron library and dialect; implement due-work polling, occurrence/job creation, missed-run handling, and current-permission checks. Keep timed work distinct from suspending an existing run.
