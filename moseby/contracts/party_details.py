@@ -15,7 +15,7 @@ class PartyDetail(Contract):
     party_id: PartyId
     text: str = Field(min_length=1)
     referenced_guest_ids: list[GuestId] = Field(
-        description="Classifier-selected members of this party, validated by the service."
+        description="Clear matches from this party, validated by the service. An ambiguous status means other references remain unclear."
     )
     reference_format_version: Literal[1] = Field(
         default=1, description="Version of the stored reference format."
@@ -28,10 +28,13 @@ class PartyDetail(Contract):
         if len(set(self.referenced_guest_ids)) != len(self.referenced_guest_ids):
             raise ValueError("referenced_guest_ids must be unique")
         if (
-            self.reference_status != GuestReferenceStatus.RESOLVED
+            self.reference_status
+            in (GuestReferenceStatus.PENDING, GuestReferenceStatus.FAILED)
             and self.referenced_guest_ids
         ):
-            raise ValueError("unresolved references must not assert guest identities")
+            raise ValueError(
+                "pending or failed references must not assert guest identities"
+            )
         return self
 
 

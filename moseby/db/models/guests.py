@@ -2,6 +2,7 @@ from typing import Self
 
 from pydantic import Field, model_validator
 
+from moseby.domain.contacts import validate_contact_preference
 from moseby.domain.enums import ContactPreference
 from moseby.identifiers import BookingId, GuestId, PartyId
 
@@ -47,10 +48,9 @@ class GuestValues(Row):
 
     @model_validator(mode="after")
     def check_contact(self) -> Self:
-        if self.contact_preference == ContactPreference.PHONE and not self.phone:
-            raise ValueError("phone preference requires a phone number")
-        if self.contact_preference == ContactPreference.EMAIL and not self.email:
-            raise ValueError("email preference requires an email address")
+        validate_contact_preference(
+            self.contact_preference, phone=self.phone, email=self.email
+        )
         return self
 
 

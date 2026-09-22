@@ -2,9 +2,8 @@ from collections.abc import Iterable
 
 from sqlalchemy import Engine
 
-from moseby.contracts.amounts import NonNegativeAmount
 from moseby.contracts.common import Page
-from moseby.contracts.rooms import Bed, NightlyPrice, Room, SearchRoomsRequestPayload
+from moseby.contracts.rooms import Bed, Room, SearchRoomsRequestPayload
 from moseby.db.models.rooms import RoomFilters, RoomRow
 from moseby.db.pagination import PageRequest
 from moseby.db.repositories import rooms as rooms_repository
@@ -14,6 +13,7 @@ from moseby.domain.enums import RoomServiceStatus
 from moseby.identifiers import HotelId, RoomId
 from moseby.permissions import Permission
 
+from ._prices import nightly_price
 from .access import require_permission
 
 READ_PERMISSION = Permission("moseby.rooms:read")
@@ -77,9 +77,7 @@ def _room(row: RoomRow) -> Room:
             else RoomServiceStatus.OUT_OF_SERVICE
         ),
         beds=[Bed(id=bed.id, type=bed.type) for bed in row.beds],
-        price=NightlyPrice(
-            price_id=row.price_id,
-            revision=row.price_revision,
-            amount=NonNegativeAmount(value=row.amount_minor, currency=row.currency),
+        price=nightly_price(
+            row.price_id, row.price_revision, row.amount_minor, row.currency
         ),
     )

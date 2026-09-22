@@ -46,6 +46,9 @@ class GuestReferences(Row):
     def check_references(self) -> Self:
         if len(set(self.guest_ids)) != len(self.guest_ids):
             raise ValueError("guest references must be unique")
-        if self.status != GuestReferenceStatus.RESOLVED and self.guest_ids:
-            raise ValueError("only resolved references may identify guests")
+        if (
+            self.status in (GuestReferenceStatus.PENDING, GuestReferenceStatus.FAILED)
+            and self.guest_ids
+        ):
+            raise ValueError("pending or failed references must not identify guests")
         return self

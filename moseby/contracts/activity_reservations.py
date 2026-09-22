@@ -83,9 +83,31 @@ class SearchActivityReservationsRequest(
 
 class CancelActivityReservationRequestPayload(Contract):
     reason: str = Field(min_length=1)
+    expected_revision: int = Field(
+        ge=1, description="Revision returned by the last reservation lookup."
+    )
 
 
 class CancelActivityReservationRequest(
     Request[CancelActivityReservationRequestPayload]
 ):
     pass
+
+
+class ReserveActivityRequestPayload(Contract):
+    activity_id: ActivityId
+    guest_ids: IdFilter[GuestId]
+
+    @model_validator(mode="after")
+    def check_guests(self) -> Self:
+        if len(set(self.guest_ids)) != len(self.guest_ids):
+            raise ValueError("each guest may appear only once")
+        return self
+
+
+class ReserveActivityRequest(Request[ReserveActivityRequestPayload]):
+    pass
+
+
+class ActivityReservations(Contract):
+    reservations: list[ActivityReservation]

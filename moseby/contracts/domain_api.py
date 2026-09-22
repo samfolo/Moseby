@@ -5,9 +5,6 @@ from typing import Annotated, Never
 from fastapi import APIRouter, HTTPException, Query
 
 from moseby.identifiers import (
-    ActivityReservationId,
-    BookingId,
-    GuestId,
     HotelId,
     PartyDetailId,
     PartyId,
@@ -16,14 +13,7 @@ from moseby.identifiers import (
     VenueId,
 )
 
-from .activity_reservations import (
-    ActivityReservation,
-    CancelActivityReservationRequest,
-    SearchActivityReservationsRequest,
-)
-from .bookings import Booking
 from .common import Page, PageRequest
-from .guests import Guest, UpdateGuestRequest
 from .hotels import Hotel
 from .parties import Party, SearchPartiesRequest
 from .party_details import (
@@ -91,24 +81,6 @@ def list_venues(pagination: Pagination) -> Page[Venue]:
     openapi_extra=access("moseby.venues:read", hotel_scoped=False),
 )
 def get_venue(id: VenueId) -> Venue:
-    not_implemented()
-
-
-@router.get(
-    "/bookings",
-    operation_id="listBookings",
-    openapi_extra=access("moseby.bookings:read"),
-)
-def list_bookings(pagination: Pagination) -> Page[Booking]:
-    not_implemented()
-
-
-@router.get(
-    "/bookings/{id}",
-    operation_id="getBooking",
-    openapi_extra=access("moseby.bookings:read"),
-)
-def get_booking(id: BookingId) -> Booking:
     not_implemented()
 
 
@@ -193,58 +165,4 @@ def issue_room_key(request: IssueRoomKeyRequest) -> RoomKey:
     openapi_extra=access("moseby.bookings:write"),
 )
 def deactivate_room_key(id: RoomKeyId, request: DeactivateRoomKeyRequest) -> RoomKey:
-    not_implemented()
-
-
-@router.get(
-    "/activity-reservations",
-    operation_id="listActivityReservations",
-    openapi_extra=access("moseby.activities:read"),
-)
-def list_activity_reservations(pagination: Pagination) -> Page[ActivityReservation]:
-    not_implemented()
-
-
-@router.get(
-    "/activity-reservations/{id}",
-    operation_id="getActivityReservation",
-    openapi_extra=access("moseby.activities:read"),
-)
-def get_activity_reservation(id: ActivityReservationId) -> ActivityReservation:
-    not_implemented()
-
-
-@router.api_route(
-    "/activity-reservations",
-    methods=["QUERY"],
-    operation_id="searchActivityReservations",
-    openapi_extra=query_body(
-        SearchActivityReservationsRequest, "moseby.activities:read"
-    ),
-)
-def search_activity_reservations(
-    request: SearchActivityReservationsRequest,
-) -> Page[ActivityReservation]:
-    not_implemented()
-
-
-@router.post(
-    "/activity-reservations/{id}:cancel",
-    operation_id="cancelActivityReservation",
-    openapi_extra=access("moseby.activities:write"),
-)
-def cancel_activity_reservation(
-    id: ActivityReservationId, request: CancelActivityReservationRequest
-) -> ActivityReservation:
-    not_implemented()
-
-
-@router.patch(
-    "/guests/{id}",
-    operation_id="updateGuest",
-    summary="Update a guest",
-    description="Apply the masked fields to the existing guest and validate the resulting guest before saving.",
-    openapi_extra=access("moseby.guests:write"),
-)
-def update_guest(id: GuestId, request: UpdateGuestRequest) -> Guest:
     not_implemented()

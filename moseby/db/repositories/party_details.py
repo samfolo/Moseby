@@ -88,7 +88,7 @@ def search(
     """Fetch a page of party evidence matching all filters, in creation-time and ID order.
 
     Match any listed party and referenced guest, using shared full-text matching.
-    Each note appears once; unresolved references cannot match a guest filter.
+    Each note appears once; guest filters match saved IDs even when other references are unclear.
     """
     statement = _select(hotel_id).where(party_details.c.party_id.in_(filters.party_ids))
     if filters.guest_ids is not None:

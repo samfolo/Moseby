@@ -10,10 +10,17 @@ from moseby.agents.models import (
     ToolSpecification,
 )
 from moseby.common.types import NonemptyText
-from moseby.identifiers import RunId, ThreadRecordId
+from moseby.identifiers import RunId, TaskId, ThreadRecordId
 from moseby.inference.models.generation import ToolDefinition
 from moseby.permissions import Permission
 from moseby.runtime.models.common import ToolCallId
+
+
+class ToolClaim(AgentModel):
+    """Internal proof of ownership used to guard a tool's database writes."""
+
+    task_id: TaskId
+    token: NonemptyText = Field(repr=False, exclude=True)
 
 
 class ToolContext(AgentModel):
@@ -27,6 +34,8 @@ class ToolContext(AgentModel):
     request_id: NonemptyText = Field(
         description="Accepted request ID, reused across retries of this tool call."
     )
+    claim: ToolClaim | None = Field(default=None, repr=False, exclude=True)
+    token_budget: int | None = Field(default=None, gt=0)
 
 
 @dataclass(frozen=True)

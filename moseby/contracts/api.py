@@ -4,9 +4,11 @@ from fastapi import FastAPI
 from sqlalchemy import Engine
 
 from moseby.db.pagination import InvalidCursor
+from moseby.gateway.activity_reservations import router as reservations_router
 from moseby.gateway.dependencies import GatewayBinding
 from moseby.gateway.domain_reads import router as reads_router
 from moseby.gateway.errors import invalid_cursor, permission_denied
+from moseby.gateway.stays import router as stays_router
 from moseby.identifiers import HotelId, StaffMemberId
 
 from .domain_api import router as domain_router
@@ -30,7 +32,7 @@ def create_app(
         version="0.1.0",
         docs_url=None,
         redoc_url=None,
-        description="Resort operations API for guest lookup, room search and activity browsing.",
+        description="Resort concierge API for stays, guests, rooms and activities.",
     )
     application.openapi_version = "3.2.1"
     application.state.gateway_binding = (
@@ -39,6 +41,8 @@ def create_app(
     application.include_router(domain_router, responses=UNIMPLEMENTED)
     application.include_router(runtime_router, responses=UNIMPLEMENTED)
     application.include_router(reads_router)
+    application.include_router(reservations_router)
+    application.include_router(stays_router)
     application.add_exception_handler(PermissionError, permission_denied)
     application.add_exception_handler(InvalidCursor, invalid_cursor)
     return application

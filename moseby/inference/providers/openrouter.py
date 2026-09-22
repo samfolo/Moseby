@@ -112,4 +112,10 @@ def _total_tokens(response: JsonObject) -> int | None:
     """Read reported usage without treating an absent or malformed count as zero."""
     usage = response.get("usage")
     total = usage.get("total_tokens") if isinstance(usage, dict) else None
-    return total if type(total) is int and total >= 0 else None
+    if type(total) is int and total >= 0:
+        return total
+    if isinstance(usage, dict):
+        counts = (usage.get("input_tokens"), usage.get("output_tokens"))
+        if all(type(count) is int and count >= 0 for count in counts):
+            return sum(counts)
+    return None

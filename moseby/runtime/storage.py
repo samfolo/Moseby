@@ -140,6 +140,13 @@ class ConversationStore:
                 )
             )
 
+    def token_usage(self, run_id: RunId) -> int | None:
+        """Include generation and classification in the run's reported token usage."""
+        with transaction(self.engine) as connection:
+            return inference_requests.token_usage(
+                connection, run_id, creator_staff_member_id=self.staff_member_id
+            )
+
     def prepare(
         self,
         thread_id: ThreadId,

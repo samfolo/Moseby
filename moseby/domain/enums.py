@@ -51,7 +51,7 @@ class ActivityPriceUnit(StrEnum):
 
 
 class GuestReferenceStatus(StrEnum):
-    """Proposed outcomes distinguish an empty resolved result from unresolved references."""
+    """Ambiguous notes retain clear guest matches while other references remain uncertain."""
 
     PENDING = "GUEST_REFERENCE_STATUS_PENDING"
     RESOLVED = "GUEST_REFERENCE_STATUS_RESOLVED"

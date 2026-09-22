@@ -6,12 +6,16 @@ from moseby.db.transaction import transaction
 from moseby.domain.enums import StaffRole
 from moseby.identifiers import HotelId, StaffMemberId
 
-from . import activities, guests, rooms
+from . import activities, activity_reservations, guests, rooms, stays
 
 CONCIERGE_PERMISSIONS = (
+    stays.READ_PERMISSION,
+    stays.WRITE_PERMISSION,
     rooms.READ_PERMISSION,
     guests.READ_PERMISSION,
+    guests.WRITE_PERMISSION,
     activities.READ_PERMISSION,
+    activity_reservations.WRITE_PERMISSION,
 )
 
 

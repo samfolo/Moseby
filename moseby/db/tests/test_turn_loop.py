@@ -1,6 +1,9 @@
 """Exercise the real loop and SQLite boundaries with a scripted inference provider."""
 
 import asyncio
+import json
+from datetime import UTC, datetime
+from unittest.mock import patch
 
 from moseby.agents.agent import index_agent_definitions
 from moseby.agents.models import AgentDefinition
@@ -11,9 +14,10 @@ from moseby.db.models.tasks import TaskFilters
 from moseby.db.repositories import jobs, runs, tasks
 from moseby.db.tests.fixtures import identifier
 from moseby.db.tests.gateway_fixtures import GatewayDatabaseTestCase
+from moseby.db.tests.inference_fixtures import ScriptedProvider
+from moseby.db.timestamps import to_datetime
 from moseby.db.transaction import transaction
 from moseby.inference.errors import InferenceError, InferenceErrorCode
-from moseby.inference.models.common import InferenceResult
 from moseby.inference.models.generation import AssistantMessage, ToolMessage
 from moseby.permissions import Permission
 from moseby.runtime.enums import JobStatus, RunStatus, TaskStatus
@@ -23,25 +27,6 @@ from moseby.runtime.models.thread_records import ThreadRecordKind
 from moseby.runtime.storage import ConversationStore
 from moseby.tools.definitions import index_tools
 from moseby.tools.rooms import create_tools
-
-
-class ScriptedProvider:
-    def __init__(self, *replies, total_tokens=20):
-        self.replies = iter(replies)
-        self.requests = []
-        self.total_tokens = total_tokens
-
-    async def generate(self, request):
-        self.requests.append(request)
-        reply = next(self.replies)
-        if isinstance(reply, Exception):
-            raise reply
-        return InferenceResult(
-            output=reply,
-            request=request.model_dump(mode="json"),
-            response={"choices": []},
-            total_tokens=self.total_tokens,
-        )
 
 
 class TurnLoopTests(GatewayDatabaseTestCase):
@@ -96,9 +81,18 @@ class TurnLoopTests(GatewayDatabaseTestCase):
         self.turn(provider, text="What did I say?", request_id="message-2")
         self.assertEqual(
             [m.role for m in provider.requests[0].messages],
-            ["system", "system", "user", "assistant", "user"],
+            [
+                "system",
+                "system",
+                "system",
+                "user",
+                "assistant",
+                "system",
+                "user",
+                "system",
+            ],
         )
-        self.assertEqual(provider.requests[0].messages[2].content, "Hello")
+        self.assertEqual(provider.requests[0].messages[3].content, "Hello")
         with transaction(self.engine) as connection:
             self.assertIsNone(
                 runs.find_active_by_thread_id(
@@ -111,6 +105,34 @@ class TurnLoopTests(GatewayDatabaseTestCase):
         self.assertEqual(
             [r.sequence for r in history], list(range(1, len(history) + 1))
         )
+
+    def test_current_time_is_refreshed_when_a_saved_conversation_resumes(self):
+        """Reopening refreshes the clock while keeping the earlier message's date and prompt prefix intact."""
+        previous = None
+        for day in (22, 23):
+            now = datetime(2026, 9, day, 12, tzinfo=UTC)
+            provider = ScriptedProvider(AssistantMessage(text="Which room?"))
+            with patch("moseby.runtime.context.datetime") as clock:
+                clock.now.return_value = now
+                self.turn(
+                    provider, text="What is available today?", request_id=f"day-{day}"
+                )
+            messages = provider.requests[0].messages
+            context = messages[-1].content
+            values = json.loads(context.split(": ", 1)[1])
+            self.assertEqual(values["current_time_utc"], now.isoformat())
+            first_user = next(
+                row
+                for row in self.store.history(self.thread_id)
+                if row.kind == ThreadRecordKind.USER_MESSAGE
+            )
+            self.assertIn(
+                to_datetime(first_user.created_at).isoformat(), messages[2].content
+            )
+            if previous is not None:
+                self.assertEqual(messages[: len(previous)], previous)
+            previous = messages[:-1]
+            self.store = self.make_store()
 
     def test_tool_jobs_claims_and_delivery_feed_the_next_request(self):
         """A room search is queued, claimed and delivered before the model receives its result."""
@@ -320,7 +342,17 @@ class TurnLoopTests(GatewayDatabaseTestCase):
                 creator_staff_member_id=self.store.staff_member_id,
             )
             self.assertEqual(attempt.status, InferenceStatus.FAILED)
-            self.assertEqual(attempt.request["messages"][-1]["content"], "Hello")
+            self.assertEqual(
+                [
+                    message["content"]
+                    for message in attempt.request["messages"]
+                    if message["role"] == "user"
+                ],
+                ["Hello"],
+            )
+            self.assertIn(
+                "current_time_utc", attempt.request["messages"][-1]["content"]
+            )
             self.assertEqual(attempt.error["code"], InferenceErrorCode.TIMEOUT)
             links = (
                 connection.execute(

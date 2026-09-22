@@ -297,6 +297,7 @@ class OpenRouterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result.output.answers["mentions_dan"].probability, 0.98)
         self.assertEqual(result.output.answers["activity"].choice, "pottery")
         self.assertEqual(result.response["usage"]["input_tokens"], 20)
+        self.assertEqual(result.total_tokens, 24)
 
     async def test_classification_rejects_missing_answers_and_invented_choices(self):
         """Unknown choices, missing answers and invalid probabilities fail validation."""

@@ -54,15 +54,14 @@ async def run_turn(
         return _saved_result(store, thread_id, run_id)
 
     turns = 0
-    tokens = 0
-    usage_known = True
     inference_id = None
     try:
         while turns < agent.definition.max_turns:
-            if not usage_known or tokens >= agent.definition.token_budget:
+            tokens = store.token_usage(run_id)
+            if tokens is None or tokens >= agent.definition.token_budget:
                 reason = (
                     "Token usage is unavailable"
-                    if not usage_known
+                    if tokens is None
                     else "Token budget reached"
                 )
                 store.finish(run_id, RunStatus.FAILED, reason)
@@ -79,8 +78,6 @@ async def run_turn(
             # Access may have changed while we waited for the model.
             store.load_agent(thread_id)
             turns += 1
-            usage_known = result.total_tokens is not None
-            tokens += result.total_tokens or 0
             # The reply and all of its tool jobs become durable together.
             _, work = store.accept(
                 thread_id, run_id, inference_id, source_record_id, result

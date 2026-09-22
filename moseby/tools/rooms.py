@@ -39,7 +39,7 @@ def create_tools(engine: Engine) -> tuple[Tool, ...]:
     return (
         Tool(
             name="search_rooms",
-            description="Find rooms by dates, tier, beds and price within the staff member's hotel.",
+            description="Find rooms by dates, tier, beds and price within the staff member's hotel. Supply availability_date_range to check a stay; without it, results describe inventory rather than availability.",
             arguments=SearchRoomsRequestPayload,
             result=Page[Room],
             required_permissions=(rooms.READ_PERMISSION,),

@@ -214,7 +214,7 @@ class DiscoveryHttpTests(GatewayDatabaseTestCase):
         )
 
     def test_working_routes_have_one_handler_and_document_their_responses(self):
-        """Each read resolves to its implemented handler and no longer advertises a 501 stub."""
+        """Each read has one handler and documents its success and access failures."""
         schema = self.app.openapi()
         for path in ("/guests", "/activities"):
             for method in ("get", "query"):
@@ -229,9 +229,3 @@ class DiscoveryHttpTests(GatewayDatabaseTestCase):
             if getattr(route, "operation_id", None)
         ]
         self.assertEqual(len(operation_ids), len(set(operation_ids)))
-        self.assertFalse(
-            any(
-                permission.root.endswith(":write")
-                for permission in authority.CONCIERGE_PERMISSIONS
-            )
-        )

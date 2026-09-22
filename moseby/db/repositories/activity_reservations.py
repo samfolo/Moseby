@@ -210,7 +210,9 @@ def reserve(
     )
     count = len(values.attendees)
     if not activity.min_booking_size <= count <= activity.max_booking_size:
-        raise WriteConflict("The group does not fit this activity's booking size")
+        raise WriteConflict(
+            f"This activity accepts groups of {activity.min_booking_size} to {activity.max_booking_size}; {count} guests were requested"
+        )
     if now >= activity.min_date:
         raise WriteConflict("The activity has already started")
 
@@ -242,7 +244,9 @@ def reserve(
         activity.capacity is not None
         and activity.reserved_places + count > activity.capacity
     ):
-        raise WriteConflict("The activity has insufficient remaining places")
+        raise WriteConflict(
+            f"The activity has {activity.capacity - activity.reserved_places} places remaining; {count} were requested"
+        )
 
     # Each guest needs an eligible booking, sufficient age and rooms covering the event.
     for person in people.values():
@@ -263,7 +267,9 @@ def reserve(
                 "New activity reservations require a confirmed stay and current timestamp"
             )
         if person.age < activity.minimum_age:
-            raise WriteConflict("A guest does not meet the activity's minimum age")
+            raise WriteConflict(
+                f"Guest {person.id} does not meet the minimum age of {activity.minimum_age}"
+            )
         require_coverage(
             connection,
             booking.id,

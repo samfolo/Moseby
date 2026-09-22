@@ -2,6 +2,7 @@
 
 import json
 from dataclasses import dataclass
+from datetime import UTC, datetime
 
 from moseby.agents.agent import Agent
 from moseby.db.models.thread_records import ThreadRecordRow
@@ -54,6 +55,13 @@ def prepare_context(agent: Agent, records: list[ThreadRecordRow]) -> Conversatio
             row.model_dump() | {"created_at": to_datetime(row.created_at)}
         )
         if isinstance(record, UserMessageRecord):
+            # Keep relative dates tied to the original message when a thread resumes.
+            messages.append(
+                TextMessage(
+                    role="system",
+                    content=f"The following user message was recorded at {record.created_at.isoformat()}.",
+                )
+            )
             messages.append(TextMessage(role="user", content=record.payload.text))
         elif isinstance(record, AssistantMessageRecord):
             for call in record.payload.tool_calls:
@@ -81,6 +89,14 @@ def prepare_context(agent: Agent, records: list[ThreadRecordRow]) -> Conversatio
         raise ValueError(
             "This thread has unfinished tool calls; resolve its interrupted run before continuing"
         )
+    # Put the changing clock after history so the earlier prompt stays reusable.
+    messages.append(
+        TextMessage(
+            role="system",
+            content="Runtime notice: "
+            + json.dumps({"current_time_utc": datetime.now(UTC).isoformat()}),
+        )
+    )
     return ConversationInput(
         GenerationRequest(messages=messages, tools=list(agent.tools)), selected
     )

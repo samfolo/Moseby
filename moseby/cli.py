@@ -19,15 +19,16 @@ from moseby.db.transaction import transaction
 from moseby.identifiers import new_id
 from moseby.inference.errors import InferenceError
 from moseby.inference.providers.openrouter import OpenRouterProvider
+from moseby.runtime.guest_references import GuestReferenceRecorder
 from moseby.runtime.loop import run_turn
 from moseby.runtime.models.thread_records import ThreadRecordKind
 from moseby.runtime.storage import ConversationStore, now_microseconds
+from moseby.tools.concierge import create_tools as concierge_tools
 from moseby.tools.definitions import index_tools
-from moseby.tools.rooms import create_tools
 
 
 def initialize(engine: Engine) -> None:
-    """Apply migrations and insert the demo's hotel, staff and room inventory."""
+    """Apply migrations and add the demo hotel, guests, rooms and activity sessions."""
     config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
     with transaction(engine, write=True) as connection:
         config.attributes["connection"] = connection
@@ -37,33 +38,40 @@ def initialize(engine: Engine) -> None:
 
 async def chat(engine: Engine, args: argparse.Namespace) -> None:
     settings = InferenceSettings.from_environment()
-    selected = definition()
-    store = ConversationStore(
-        engine,
-        demo.STAFF_MEMBER_ID,
-        demo.HOTEL_ID,
-        index_agent_definitions([selected]),
-        index_tools(create_tools(engine)),
-    )
-    thread_id = args.thread or store.create(selected)
-    store.load_agent(thread_id)
-    print(f"Thread: {thread_id}")
-    if args.thread:
-        for record in store.history(thread_id):
-            if record.kind in (
-                ThreadRecordKind.USER_MESSAGE,
-                ThreadRecordKind.ASSISTANT_MESSAGE,
-            ):
-                text = record.payload.get("text")
-                if text:
-                    who = (
-                        "You"
-                        if record.kind == ThreadRecordKind.USER_MESSAGE
-                        else "Moseby"
-                    )
-                    print(f"{who}: {text}")
     async with httpx.AsyncClient() as client:
         provider = OpenRouterProvider(settings, client)
+        selected = definition()
+        store = ConversationStore(
+            engine,
+            demo.STAFF_MEMBER_ID,
+            demo.HOTEL_ID,
+            index_agent_definitions([selected]),
+            index_tools(
+                concierge_tools(
+                    engine,
+                    GuestReferenceRecorder(
+                        engine, provider, "openrouter", settings.classification_model
+                    ),
+                )
+            ),
+        )
+        thread_id = args.thread or store.create(selected)
+        store.load_agent(thread_id)
+        print(f"Thread: {thread_id}")
+        if args.thread:
+            for record in store.history(thread_id):
+                if record.kind in (
+                    ThreadRecordKind.USER_MESSAGE,
+                    ThreadRecordKind.ASSISTANT_MESSAGE,
+                ):
+                    text = record.payload.get("text")
+                    if text:
+                        who = (
+                            "You"
+                            if record.kind == ThreadRecordKind.USER_MESSAGE
+                            else "Moseby"
+                        )
+                        print(f"{who}: {text}")
         while True:
             if args.message is not None:
                 text = args.message

@@ -23,7 +23,7 @@ from moseby.runtime.models.common import ErrorDetails
 from moseby.runtime.models.job_outcomes import JobOutcome
 from moseby.runtime.models.messages import ToolCall, ToolResultStatus
 from moseby.runtime.models.thread_records import ThreadRecordKind
-from moseby.tools.definitions import ToolContext
+from moseby.tools.definitions import ToolClaim, ToolContext
 from moseby.tools.execution import ToolErrorCode, execute_tool
 
 from .enums import JobStatus
@@ -109,6 +109,8 @@ async def execute_queued_tool(
                 source_record_id=job.source_record_id,
                 tool_call_id=call.id,
                 request_id=job.request_id,
+                claim=ToolClaim(task_id=work.task_id, token=claim.token),
+                token_budget=agent.definition.token_budget,
             )
             async with asyncio.timeout(TOOL_TIMEOUT_SECONDS):
                 result = await execute_tool(

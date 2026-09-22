@@ -5,8 +5,8 @@ from collections.abc import Sequence
 from sqlalchemy import Connection, insert, null, select, update
 
 from moseby.common.types import JsonObject
-from moseby.identifiers import InferenceRequestId, StaffMemberId, ThreadRecordId
-from moseby.runtime.enums import InferencePurpose, InferenceStatus
+from moseby.identifiers import InferenceRequestId, RunId, StaffMemberId, ThreadRecordId
+from moseby.runtime.enums import InferenceStatus
 from moseby.runtime.models.common import ErrorDetails
 
 from ..errors import WriteConflict
@@ -66,7 +66,6 @@ def prepare(
             insert(inference_requests).values(
                 **values.model_dump(exclude={"request"}),
                 request_json=values.request,
-                purpose=InferencePurpose.MAIN,
                 format_version=1,
                 status=InferenceStatus.PREPARED,
                 created_at=now,
@@ -164,3 +163,24 @@ def finish(
             finished_at=now,
         )
     )
+
+
+def token_usage(
+    connection: Connection, run_id: RunId, *, creator_staff_member_id: StaffMemberId
+) -> int | None:
+    """Total reported tokens for this run; any unreported attempt makes usage unknown."""
+    responses = connection.scalars(
+        select(inference_requests.c.response_json).where(
+            inference_requests.c.run_id == run_id,
+            inference_requests.c.thread_id.in_(
+                owned_thread_ids(creator_staff_member_id)
+            ),
+        )
+    )
+    total = 0
+    for response in responses:
+        used = response.get("total_tokens") if isinstance(response, dict) else None
+        if type(used) is not int or used < 0:
+            return None
+        total += used
+    return total

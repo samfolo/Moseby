@@ -1,9 +1,10 @@
 from typing import Annotated, Literal, Self, TypedDict
 
-from pydantic import ConfigDict, Field, model_validator, with_config
+from pydantic import AwareDatetime, ConfigDict, Field, model_validator, with_config
 
+from moseby.domain.contacts import validate_contact_preference
 from moseby.domain.enums import ContactPreference as ContactPreference
-from moseby.identifiers import BookingId, GuestId, PartyId
+from moseby.identifiers import BookingId, GuestId, PartyDetailId, PartyId
 
 from .common import Contract, IdFilter, Request, SearchRequestPayload
 
@@ -20,33 +21,40 @@ type UpdateGuestFieldMask = Literal[
 ]
 
 
-class Guest(Contract):
-    """One person during one stay; returning visitors receive new guest IDs."""
+class GuestDetails(Contract):
+    """Guest information supplied when creating a stay."""
 
-    id: GuestId
-    party_id: PartyId = Field(description="Party for this stay; immutable membership.")
     first_name: str = Field(min_length=1)
     last_name: str = Field(min_length=1)
-    preferred_name: str | None
+    preferred_name: str | None = None
     age: int = Field(ge=0, description="Recorded age for activity eligibility.")
     dietary_requirements: str | None = Field(
-        description="Reported dietary requirements in the staff member's own words."
+        default=None,
+        description="Reported dietary requirements in the staff member's own words.",
     )
-    phone: str | None
-    email: str | None
+    phone: str | None = None
+    email: str | None = None
     contact_preference: ContactPreference | None = Field(
-        description="Null uses every supplied channel; a preference requires that contact."
+        default=None,
+        description="Null uses every supplied channel; a preference requires that contact.",
     )
 
     @model_validator(mode="after")
     def check_contact(self) -> Self:
-        contacts = {
-            ContactPreference.PHONE: self.phone,
-            ContactPreference.EMAIL: self.email,
-        }
-        if self.contact_preference and not contacts[self.contact_preference]:
-            raise ValueError("contact_preference requires the selected contact")
+        validate_contact_preference(
+            self.contact_preference, phone=self.phone, email=self.email
+        )
         return self
+
+
+class Guest(GuestDetails):
+    """One person during one stay; returning visitors receive new guest IDs."""
+
+    id: GuestId
+    party_id: PartyId = Field(description="Party for this stay; immutable membership.")
+    updated_at: AwareDatetime = Field(
+        description="Version timestamp to supply when updating this guest."
+    )
 
 
 @with_config(ConfigDict(extra="forbid"))
@@ -64,6 +72,11 @@ class UpdateGuestRequestPayload(TypedDict, total=False):
 
 
 class UpdateGuestRequest(Request[UpdateGuestRequestPayload]):
+    expected_updated_at: AwareDatetime
+    evidence_detail_id: PartyDetailId | None = Field(
+        default=None,
+        description="Saved note in this party supporting a dietary change.",
+    )
     update_mask: list[UpdateGuestFieldMask] = Field(
         min_length=1,
         description="Unique field names matching the supplied payload keys exactly.",
@@ -74,6 +87,10 @@ class UpdateGuestRequest(Request[UpdateGuestRequestPayload]):
         fields = set(self.update_mask)
         if len(fields) != len(self.update_mask) or fields != set(self.payload):
             raise ValueError("update_mask must name each supplied field exactly once")
+        if "dietary_requirements" in fields and self.evidence_detail_id is None:
+            raise ValueError(
+                "Save a party note first and supply evidence_detail_id for a dietary change"
+            )
         return self
 
 
@@ -87,7 +104,7 @@ class SearchGuestsRequestPayload(SearchRequestPayload):
         default=None,
         min_length=1,
         pattern=r"\S",
-        description="Match every whole-word keyword across first, last and preferred names, ignoring case and Latin accents.",
+        description="Supply name keywords containing at least one non-whitespace character. Match every whole word across first, last and preferred names, ignoring case and Latin accents.",
     )
 
 

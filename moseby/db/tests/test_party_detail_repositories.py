@@ -5,12 +5,14 @@ import json
 from alembic import command
 from alembic.config import Config
 from sqlalchemy import delete, update
+from sqlalchemy.exc import IntegrityError
 
 from moseby.db.models.party_details import PartyDetailFilters
 from moseby.db.pagination import InvalidCursor, PageRequest
 from moseby.db.repositories import party_details
 from moseby.db.tests.fixtures import ROOT, StayDatabaseTestCase, identifier
 from moseby.db.transaction import transaction
+from moseby.domain.enums import GuestReferenceStatus
 
 
 class PartyDetailRepositoryTests(StayDatabaseTestCase):
@@ -291,3 +293,44 @@ class PartyDetailRepositoryTests(StayDatabaseTestCase):
             self.assertEqual(
                 [row.id for row in result.items], [identifier("party_detail")]
             )
+
+    def test_partial_reference_migration_preserves_notes_and_membership_checks(self):
+        """Upgrading permits clear matches on ambiguous notes while keeping invalid references out."""
+        with transaction(self.engine, write=True) as connection:
+            config = Config(str(ROOT / "alembic.ini"))
+            config.attributes["connection"] = connection
+            command.downgrade(config, "0006_guest_search")
+            note_id = identifier("party_detail", 5)
+            before = party_details.find_by_id(
+                connection, note_id, hotel_id=identifier("hotel")
+            )
+            command.upgrade(config, "head")
+            self.assertEqual(
+                party_details.find_by_id(
+                    connection, note_id, hotel_id=identifier("hotel")
+                ),
+                before,
+            )
+            table = self.metadata.tables["party_details"]
+            change = update(table).where(table.c.id == note_id)
+            connection.execute(
+                change.values(
+                    referenced_guest_ids_json=json.dumps([identifier("guest")])
+                )
+            )
+            for status, ids in (
+                (GuestReferenceStatus.PENDING, [identifier("guest")]),
+                (GuestReferenceStatus.FAILED, [identifier("guest")]),
+                (GuestReferenceStatus.AMBIGUOUS, [identifier("guest", 2)]),
+                (GuestReferenceStatus.AMBIGUOUS, [identifier("guest")] * 2),
+            ):
+                with self.subTest(status=status, ids=ids):
+                    with connection.begin_nested(), self.assertRaises(IntegrityError):
+                        connection.execute(
+                            change.values(
+                                reference_status=status.value,
+                                referenced_guest_ids_json=json.dumps(ids),
+                            )
+                        )
+            with self.assertRaisesRegex(RuntimeError, "ambiguous notes contain clear"):
+                command.downgrade(config, "0006_guest_search")

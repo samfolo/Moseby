@@ -32,3 +32,4 @@ class NewInferenceRequest(Row):
     provider: NonemptyText
     model: NonemptyText
     request: JsonObject
+    purpose: InferencePurpose = InferencePurpose.MAIN
