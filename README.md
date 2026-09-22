@@ -51,6 +51,7 @@ Run `.venv/bin/python -m moseby --help` for command options.
 | Lint and check formatting | `make check` |
 | Run tests | `make test-db test-models test-contracts test-inference test-agents test-tools` |
 | Apply migrations | `make migrate` |
+| Delete the local demo database (stop chat first) | `make clean-db` |
 | Regenerate OpenAPI | `.venv/bin/python -m moseby.contracts.export` |
 
 ## Things to know

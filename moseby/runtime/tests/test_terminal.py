@@ -3,7 +3,6 @@
 import asyncio
 import io
 import unittest
-from argparse import Namespace
 from contextlib import redirect_stdout
 from unittest.mock import patch
 
@@ -27,7 +26,7 @@ class TerminalTests(unittest.TestCase):
         """A blank --message fails before creating a thread or contacting the provider."""
         with patch("moseby.cli.InferenceSettings.from_environment") as settings:
             with self.assertRaisesRegex(ValueError, "nonempty"):
-                asyncio.run(chat(None, Namespace(message="  \n")))
+                asyncio.run(chat(None, message="  \n"))
             settings.assert_not_called()
 
     def test_speaker_colour_respects_redirects_and_no_color(self):

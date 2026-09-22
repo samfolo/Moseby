@@ -10,7 +10,6 @@ from unittest.mock import patch
 from moseby.agents.agent import index_agent_definitions
 from moseby.agents.models import AgentDefinition
 from moseby.agents.prompts import concierge_prompt
-from moseby.cli import print_turn_result
 from moseby.common.usage import TokenUsage
 from moseby.db.errors import WriteConflict
 from moseby.db.models.jobs import JobFilters
@@ -29,6 +28,7 @@ from moseby.runtime.loop import run_turn
 from moseby.runtime.models.messages import ToolCall
 from moseby.runtime.models.thread_records import ThreadRecordKind
 from moseby.runtime.storage import ConversationStore
+from moseby.terminal import print_turn_result
 from moseby.tools.definitions import index_tools
 from moseby.tools.rooms import create_tools
 

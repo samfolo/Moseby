@@ -5,70 +5,52 @@ import asyncio
 from pathlib import Path
 
 import httpx
-from alembic import command
-from alembic.config import Config
 from sqlalchemy import URL, Engine
 
-from moseby.agents.agent import index_agent_definitions
 from moseby.agents.concierge import definition
+from moseby.application import create_conversation_store, initialize
 from moseby.config import InferenceSettings
 from moseby.db.connection import create_database_engine
 from moseby.db.errors import WriteConflict
-from moseby.db.repositories import demo
-from moseby.db.transaction import transaction
-from moseby.identifiers import new_id
+from moseby.identifiers import ThreadId, new_id
 from moseby.inference.errors import InferenceError
 from moseby.inference.providers.openrouter import OpenRouterProvider
-from moseby.runtime.enums import RunStatus
-from moseby.runtime.guest_references import GuestReferenceRecorder
-from moseby.runtime.loop import TurnResult, run_turn
-from moseby.runtime.models.messages import ToolResultStatus
+from moseby.runtime.loop import run_turn
 from moseby.runtime.models.thread_records import ThreadRecordKind
-from moseby.runtime.storage import ConversationStore, now_microseconds
-from moseby.terminal import read_message, speaker_label, waiting_for_model
-from moseby.tools.concierge import create_tools as concierge_tools
-from moseby.tools.definitions import index_tools
+from moseby.terminal import (
+    print_turn_result,
+    read_message,
+    speaker_label,
+    waiting_for_model,
+)
 
 
-def initialize(engine: Engine) -> None:
-    """Apply migrations and add the demo hotel, guests, rooms and activity sessions."""
-    config = Config(str(Path(__file__).resolve().parents[1] / "alembic.ini"))
-    with transaction(engine, write=True) as connection:
-        config.attributes["connection"] = connection
-        command.upgrade(config, "head")
-        demo.seed(connection, now=now_microseconds())
-
-
-async def chat(engine: Engine, args: argparse.Namespace) -> None:
-    if args.message is not None:
-        args.message = args.message.strip()
-        if not args.message:
+async def chat(
+    engine: Engine, *, thread_id: ThreadId | None = None, message: str | None = None
+) -> None:
+    """Run one message or an interactive conversation with the configured model."""
+    if message is not None:
+        message = message.strip()
+        if not message:
             raise ValueError("Enter a nonempty message.")
     settings = InferenceSettings.from_environment()
     async with httpx.AsyncClient() as client:
         provider = OpenRouterProvider(settings, client)
         selected = definition()
-        store = ConversationStore(
+        store = create_conversation_store(
             engine,
-            demo.STAFF_MEMBER_ID,
-            demo.HOTEL_ID,
-            index_agent_definitions([selected]),
-            index_tools(
-                concierge_tools(
-                    engine,
-                    GuestReferenceRecorder(
-                        engine, provider, "openrouter", settings.classification_model
-                    ),
-                )
-            ),
+            provider,
+            selected,
+            classification_model=settings.classification_model,
         )
-        thread_id = args.thread or store.create(selected)
+        reopening = thread_id is not None
+        thread_id = thread_id or store.create(selected)
         store.load_agent(thread_id)
         print(f"Thread: {thread_id}")
         print(
             f"Model: {settings.generation_model} (reasoning: {settings.reasoning_effort})"
         )
-        if args.thread:
+        if reopening:
             for record in store.history(thread_id):
                 if record.kind in (
                     ThreadRecordKind.USER_MESSAGE,
@@ -83,8 +65,8 @@ async def chat(engine: Engine, args: argparse.Namespace) -> None:
                         )
                         print(f"{speaker_label(who)} {text}")
         while True:
-            if args.message is not None:
-                text = args.message
+            if message is not None:
+                text = message
             else:
                 text = read_message()
                 if text is None:
@@ -101,26 +83,8 @@ async def chat(engine: Engine, args: argparse.Namespace) -> None:
                 on_inference_start=waiting_for_model,
             )
             print_turn_result(result)
-            if args.message is not None:
+            if message is not None:
                 return
-
-
-def print_turn_result(result: TurnResult) -> None:
-    """Separate the assistant's reply from a runtime stop and its saved tool outcomes."""
-    if result.status == RunStatus.COMPLETED:
-        print(f"{speaker_label('Moseby')} {result.text or 'Run completed.'}")
-        return
-    print(f"Run stopped: {result.reason or result.status.value}.")
-    if result.tool_outcomes:
-        print("Saved tool outcomes (successful changes remain in place):")
-        for outcome in result.tool_outcomes:
-            status = (
-                "succeeded"
-                if outcome.status == ToolResultStatus.SUCCEEDED
-                else "failed"
-            )
-            print(f"  • {outcome.name}: {status}")
-    print("You can send another message; it starts a new run with its own budget.")
 
 
 def main() -> None:
@@ -140,14 +104,10 @@ def main() -> None:
             initialize(engine)
             print("Demo database ready.")
         else:
-            asyncio.run(chat(engine, args))
+            asyncio.run(chat(engine, thread_id=args.thread, message=args.message))
     except (InferenceError, PermissionError, ValueError, WriteConflict) as error:
         parser.exit(1, f"{error}\n")
     except KeyboardInterrupt:
         print("\nConversation stopped.")
     finally:
         engine.dispose()
-
-
-if __name__ == "__main__":
-    main()
