@@ -12,6 +12,7 @@ from .common import Contract, Request
 from .guests import Guest, GuestDetails
 from .parties import Party
 from .ranges import DateRange
+from .room_keys import RoomKey
 from .rooms import NightlyPrice
 
 
@@ -19,6 +20,7 @@ class Stay(Contract):
     booking: Booking
     party: Party
     guests: list[Guest]
+    room_keys: list[RoomKey]
 
 
 class GetStayRequestPayload(Contract):
@@ -51,6 +53,10 @@ class CreateStayRequestPayload(Contract):
 
 
 class CreateStayRequest(Request[CreateStayRequestPayload]):
+    pass
+
+
+class AddStayRoomRequest(Request[StayRoom]):
     pass
 
 

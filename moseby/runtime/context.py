@@ -14,8 +14,10 @@ from moseby.inference.models.generation import (
     TextMessage,
     ToolMessage,
 )
+from moseby.runtime.enums import RunStatus
 from moseby.runtime.models.thread_records import (
     AssistantMessageRecord,
+    ControlEventRecord,
     ToolResultRecord,
     UserMessageRecord,
     thread_record_adapter,
@@ -80,6 +82,19 @@ def prepare_context(agent: Agent, records: list[ThreadRecordRow]) -> Conversatio
                 ToolMessage(
                     tool_call_id=record.tool_call_id,
                     content=record.payload.model_dump_json(),
+                )
+            )
+        elif (
+            isinstance(record, ControlEventRecord)
+            and record.payload.name == "run.finished"
+            and record.payload.data.get("status") != RunStatus.COMPLETED
+        ):
+            messages.append(
+                TextMessage(
+                    role="system",
+                    content="Previous run stopped: "
+                    + str(record.payload.data.get("reason", "Unknown reason"))
+                    + ". Earlier successful tool results remain valid; check them before repeating changes.",
                 )
             )
         else:

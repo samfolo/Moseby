@@ -58,17 +58,21 @@ class Guest(GuestDetails):
 
 
 @with_config(ConfigDict(extra="forbid"))
-class UpdateGuestRequestPayload(TypedDict, total=False):
+class UpdateGuestProfilePayload(TypedDict, total=False):
     """Omitted fields stay unchanged; null clears only nullable guest fields."""
 
     first_name: Annotated[str, Field(min_length=1)]
     last_name: Annotated[str, Field(min_length=1)]
     preferred_name: str | None
     age: Annotated[int, Field(ge=0)]
-    dietary_requirements: str | None
     phone: str | None
     email: str | None
     contact_preference: ContactPreference | None
+
+
+@with_config(ConfigDict(extra="forbid"))
+class UpdateGuestRequestPayload(UpdateGuestProfilePayload, total=False):
+    dietary_requirements: str | None
 
 
 class UpdateGuestRequest(Request[UpdateGuestRequestPayload]):

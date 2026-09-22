@@ -1,13 +1,17 @@
 """Exercise the real loop and SQLite boundaries with a scripted inference provider."""
 
 import asyncio
+import io
 import json
+from contextlib import redirect_stdout
 from datetime import UTC, datetime
 from unittest.mock import patch
 
 from moseby.agents.agent import index_agent_definitions
 from moseby.agents.models import AgentDefinition
 from moseby.agents.prompts import concierge_prompt
+from moseby.cli import print_turn_result
+from moseby.common.usage import TokenUsage
 from moseby.db.errors import WriteConflict
 from moseby.db.models.jobs import JobFilters
 from moseby.db.models.tasks import TaskFilters
@@ -288,6 +292,61 @@ class TurnLoopTests(GatewayDatabaseTestCase):
                 result = self.turn(provider, request_id=f"usage-{usage}")
                 self.assertEqual(result.status, RunStatus.FAILED)
                 self.assertEqual(len(provider.requests), 1)
+                self.assertEqual(result.tool_outcomes[0].name, "search_rooms")
+                replay = self.turn(provider, request_id=f"usage-{usage}")
+                self.assertEqual(replay.reason, result.reason)
+                self.assertEqual(replay.tool_outcomes, result.tool_outcomes)
+                output = io.StringIO()
+                with redirect_stdout(output):
+                    print_turn_result(result)
+                self.assertIn("Run stopped:", output.getvalue())
+                self.assertIn("search_rooms: succeeded", output.getvalue())
+                self.assertNotIn("Moseby:", output.getvalue())
+
+    def test_cached_history_uses_reported_work_counts_and_each_run_has_its_own_budget(
+        self,
+    ):
+        """A cached conversation can continue within the run limit, and a new message starts at zero."""
+
+        class Provider(ScriptedProvider):
+            async def generate(self, request):
+                result = await super().generate(request)
+                result.usage = TokenUsage(
+                    input_tokens=11000, output_tokens=100, cache_read_tokens=10800
+                )
+                return result
+
+        provider = Provider(
+            AssistantMessage(
+                tool_calls=[ToolCall(id="call-1", name="search_rooms", arguments={})]
+            ),
+            AssistantMessage(text="Found rooms."),
+            total_tokens=11100,
+        )
+        progress = []
+        inference_started = []
+        result = asyncio.run(
+            run_turn(
+                self.store,
+                provider,
+                thread_id=self.thread_id,
+                text="Find rooms",
+                request_id="cached",
+                provider_name="test",
+                model="test",
+                on_tool_start=progress.append,
+                on_inference_start=lambda: inference_started.append(True),
+            )
+        )
+        self.assertEqual(result.status, RunStatus.COMPLETED)
+        self.assertEqual(self.store.token_usage(result.run_id), 600)
+        self.assertEqual(progress, ["search_rooms"])
+        self.assertEqual(len(inference_started), 2)
+        second = self.turn(
+            Provider(AssistantMessage(text="Hello"), total_tokens=11100),
+            request_id="next",
+        )
+        self.assertEqual(self.store.token_usage(second.run_id), 300)
 
     def test_revoked_authority_prevents_accepting_or_executing_a_reply(self):
         """Revoking access while inference is in flight prevents its reply from driving tools."""

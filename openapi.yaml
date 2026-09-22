@@ -301,38 +301,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SearchPartiesRequest'
-  /party-details/{id}:
-    get:
-      summary: Get Party Detail
-      operationId: getPartyDetail
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^party_detail_[0-7][0-9A-HJKMNP-TV-Z]{25}$
-          title: Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PartyDetail'
-        '501':
-          description: Operation is not implemented.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      x-permissions:
-        anyOf:
-        - moseby.guests:read
-        - moseby:read
-      x-hotel-scoped: true
   /party-details:
     post:
       summary: Create Party Detail
@@ -365,7 +333,7 @@ paths:
         - moseby:write
       x-hotel-scoped: true
     query:
-      summary: Search Party Details
+      summary: Search Details
       operationId: searchPartyDetails
       responses:
         '200':
@@ -374,8 +342,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Page_PartyDetail_'
-        '501':
-          description: Operation is not implemented.
+        '400':
+          description: The cursor is invalid or belongs to another search.
+        '403':
+          description: The caller lacks the required read access.
+        '503':
+          description: The gateway has not been configured.
         '422':
           description: Validation Error
           content:
@@ -393,151 +365,6 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/SearchPartyDetailsRequest'
-  /room-keys:
-    get:
-      summary: List Room Keys
-      operationId: listRoomKeys
-      parameters:
-      - name: cursor
-        in: query
-        required: false
-        schema:
-          anyOf:
-          - type: string
-            minLength: 1
-            maxLength: 2048
-          - type: 'null'
-          description: Continue the same query.
-          title: Cursor
-        description: Continue the same query.
-      - name: limit
-        in: query
-        required: false
-        schema:
-          type: integer
-          maximum: 100
-          minimum: 1
-          default: 50
-          title: Limit
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Page_RoomKey_'
-        '501':
-          description: Operation is not implemented.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      x-permissions:
-        anyOf:
-        - moseby.bookings:read
-        - moseby:read
-      x-hotel-scoped: true
-    post:
-      summary: Issue Room Key
-      operationId: issueRoomKey
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/IssueRoomKeyRequest'
-      responses:
-        '201':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoomKey'
-        '501':
-          description: Operation is not implemented.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      x-permissions:
-        anyOf:
-        - moseby.bookings:write
-        - moseby:write
-      x-hotel-scoped: true
-  /room-keys/{id}:
-    get:
-      summary: Get Room Key
-      operationId: getRoomKey
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^room_key_[0-7][0-9A-HJKMNP-TV-Z]{25}$
-          title: Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoomKey'
-        '501':
-          description: Operation is not implemented.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      x-permissions:
-        anyOf:
-        - moseby.bookings:read
-        - moseby:read
-      x-hotel-scoped: true
-  /room-keys/{id}:deactivate:
-    post:
-      summary: Deactivate Room Key
-      operationId: deactivateRoomKey
-      parameters:
-      - name: id
-        in: path
-        required: true
-        schema:
-          type: string
-          pattern: ^room_key_[0-7][0-9A-HJKMNP-TV-Z]{25}$
-          title: Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/DeactivateRoomKeyRequest'
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/RoomKey'
-        '501':
-          description: Operation is not implemented.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-      x-permissions:
-        anyOf:
-        - moseby.bookings:write
-        - moseby:write
-      x-hotel-scoped: true
   /threads:
     get:
       tags:
@@ -2765,6 +2592,262 @@ paths:
           - moseby.bookings:write
           - moseby:write
       x-hotel-scoped: true
+  /bookings/{id}:add-room:
+    post:
+      summary: Add Room
+      operationId: addRoomToStay
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^booking_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddStayRoomRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stay'
+        '400':
+          description: The cursor is invalid or belongs to another search.
+        '403':
+          description: The caller lacks the required read access.
+        '503':
+          description: The gateway has not been configured.
+        '409':
+          description: The change conflicts with current state.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        allOf:
+        - anyOf:
+          - moseby.bookings:read
+          - moseby:read
+        - anyOf:
+          - moseby.guests:read
+          - moseby:read
+        - anyOf:
+          - moseby.bookings:write
+          - moseby:write
+      x-hotel-scoped: true
+  /party-details/{id}:
+    get:
+      summary: Get Detail
+      operationId: getPartyDetail
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^party_detail_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PartyDetail'
+        '400':
+          description: The cursor is invalid or belongs to another search.
+        '403':
+          description: The caller lacks the required read access.
+        '503':
+          description: The gateway has not been configured.
+        '404':
+          description: Note not found in this hotel.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - moseby.guests:read
+        - moseby:read
+      x-hotel-scoped: true
+  /room-keys:
+    get:
+      summary: List Keys
+      operationId: listRoomKeys
+      parameters:
+      - name: cursor
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            minLength: 1
+            maxLength: 2048
+          - type: 'null'
+          description: Continue the same query.
+          title: Cursor
+        description: Continue the same query.
+      - name: limit
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 50
+          title: Limit
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Page_RoomKey_'
+        '400':
+          description: The cursor is invalid or belongs to another search.
+        '403':
+          description: The caller lacks the required read access.
+        '503':
+          description: The gateway has not been configured.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - moseby.bookings:read
+        - moseby:read
+      x-hotel-scoped: true
+    post:
+      summary: Issue Key
+      operationId: issueRoomKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IssueRoomKeyRequest'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomKey'
+        '400':
+          description: The cursor is invalid or belongs to another search.
+        '403':
+          description: The caller lacks the required read access.
+        '503':
+          description: The gateway has not been configured.
+        '409':
+          description: The reservation cannot receive a key.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - moseby.bookings:write
+        - moseby:write
+      x-hotel-scoped: true
+  /room-keys/{id}:
+    get:
+      summary: Get Key
+      operationId: getRoomKey
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^room_key_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomKey'
+        '400':
+          description: The cursor is invalid or belongs to another search.
+        '403':
+          description: The caller lacks the required read access.
+        '503':
+          description: The gateway has not been configured.
+        '404':
+          description: Key not found in this hotel.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - moseby.bookings:read
+        - moseby:read
+      x-hotel-scoped: true
+  /room-keys/{id}:deactivate:
+    post:
+      summary: Deactivate Key
+      operationId: deactivateRoomKey
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          pattern: ^room_key_[0-7][0-9A-HJKMNP-TV-Z]{25}$
+          title: Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeactivateRoomKeyRequest'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RoomKey'
+        '400':
+          description: The cursor is invalid or belongs to another search.
+        '403':
+          description: The caller lacks the required read access.
+        '503':
+          description: The gateway has not been configured.
+        '409':
+          description: The deactivation conflicts with a previous change.
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      x-permissions:
+        anyOf:
+        - moseby.bookings:write
+        - moseby:write
+      x-hotel-scoped: true
 components:
   schemas:
     Activity:
@@ -2927,6 +3010,21 @@ components:
       type: string
       pattern: ^ACTIVITY_TYPE_[A-Z][A-Z0-9_]*$
       description: Code from the activity-types table, such as ACTIVITY_TYPE_TENNIS.
+    AddStayRoomRequest:
+      properties:
+        request_id:
+          type: string
+          minLength: 1
+          title: Request Id
+          description: Identifies this logical request; reuse it when retrying.
+        payload:
+          $ref: '#/components/schemas/StayRoom'
+      additionalProperties: false
+      type: object
+      required:
+      - request_id
+      - payload
+      title: AddStayRoomRequest
     Address:
       properties:
         line_1:
@@ -5824,12 +5922,18 @@ components:
             $ref: '#/components/schemas/Guest'
           type: array
           title: Guests
+        room_keys:
+          items:
+            $ref: '#/components/schemas/RoomKey'
+          type: array
+          title: Room Keys
       additionalProperties: false
       type: object
       required:
       - booking
       - party
       - guests
+      - room_keys
       title: Stay
     StayRoom:
       properties:
@@ -6096,11 +6200,6 @@ components:
           type: integer
           minimum: 0.0
           title: Age
-        dietary_requirements:
-          anyOf:
-          - type: string
-          - type: 'null'
-          title: Dietary Requirements
         phone:
           anyOf:
           - type: string
@@ -6115,11 +6214,14 @@ components:
           anyOf:
           - $ref: '#/components/schemas/ContactPreference'
           - type: 'null'
+        dietary_requirements:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Dietary Requirements
       additionalProperties: false
       type: object
       title: UpdateGuestRequestPayload
-      description: Omitted fields stay unchanged; null clears only nullable guest
-        fields.
     UpdateScheduleFieldMask:
       type: string
       enum:

@@ -8,6 +8,7 @@ from moseby.gateway.activity_reservations import router as reservations_router
 from moseby.gateway.dependencies import GatewayBinding
 from moseby.gateway.domain_reads import router as reads_router
 from moseby.gateway.errors import invalid_cursor, permission_denied
+from moseby.gateway.guest_support import router as support_router
 from moseby.gateway.stays import router as stays_router
 from moseby.identifiers import HotelId, StaffMemberId
 
@@ -43,6 +44,7 @@ def create_app(
     application.include_router(reads_router)
     application.include_router(reservations_router)
     application.include_router(stays_router)
+    application.include_router(support_router)
     application.add_exception_handler(PermissionError, permission_denied)
     application.add_exception_handler(InvalidCursor, invalid_cursor)
     return application

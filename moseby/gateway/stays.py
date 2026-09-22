@@ -11,6 +11,7 @@ from moseby.contracts.common import Page, PageRequest
 from moseby.contracts.guests import Guest, UpdateGuestRequest
 from moseby.contracts.route_metadata import access, access_all, query_body
 from moseby.contracts.stays import (
+    AddStayRoomRequest,
     AmendStayRequest,
     CancelStayRequest,
     CompleteStayRequest,
@@ -70,7 +71,9 @@ def get_booking(id: BookingId, engine: Database, context: Caller) -> Booking:
 )
 def get_stay(request: GetStayRequest, engine: Database, context: Caller) -> Stay:
     try:
-        return stays.get(engine, request.payload, context=context)
+        return stays.get(
+            engine, request.payload, context=context, now=now_microseconds()
+        )
     except ValueError as error:
         raise HTTPException(404, str(error)) from error
 
@@ -159,3 +162,23 @@ def update_guest(
 ) -> Guest:
     with write_command(engine, now=now_microseconds()) as (connection, now):
         return guests.update(connection, id, request, context=context, now=now)
+
+
+@router.post(
+    "/bookings/{id}:add-room",
+    operation_id="addRoomToStay",
+    status_code=201,
+    openapi_extra=access_all(*stays.WRITE_PERMISSIONS),
+)
+def add_room(
+    id: BookingId, request: AddStayRoomRequest, engine: Database, context: Caller
+) -> Stay:
+    with write_command(engine, now=now_microseconds()) as (connection, now):
+        return stays.add_room(
+            connection,
+            id,
+            request.payload,
+            context=context,
+            request_id=request.request_id,
+            now=now,
+        )

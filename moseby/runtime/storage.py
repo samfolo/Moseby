@@ -141,7 +141,7 @@ class ConversationStore:
             )
 
     def token_usage(self, run_id: RunId) -> int | None:
-        """Include generation and classification in the run's reported token usage."""
+        """Count this run's uncached input and output across generation and classification."""
         with transaction(self.engine) as connection:
             return inference_requests.token_usage(
                 connection, run_id, creator_staff_member_id=self.staff_member_id

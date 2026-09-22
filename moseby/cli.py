@@ -19,10 +19,13 @@ from moseby.db.transaction import transaction
 from moseby.identifiers import new_id
 from moseby.inference.errors import InferenceError
 from moseby.inference.providers.openrouter import OpenRouterProvider
+from moseby.runtime.enums import RunStatus
 from moseby.runtime.guest_references import GuestReferenceRecorder
-from moseby.runtime.loop import run_turn
+from moseby.runtime.loop import TurnResult, run_turn
+from moseby.runtime.models.messages import ToolResultStatus
 from moseby.runtime.models.thread_records import ThreadRecordKind
 from moseby.runtime.storage import ConversationStore, now_microseconds
+from moseby.terminal import read_message, speaker_label, waiting_for_model
 from moseby.tools.concierge import create_tools as concierge_tools
 from moseby.tools.definitions import index_tools
 
@@ -37,6 +40,10 @@ def initialize(engine: Engine) -> None:
 
 
 async def chat(engine: Engine, args: argparse.Namespace) -> None:
+    if args.message is not None:
+        args.message = args.message.strip()
+        if not args.message:
+            raise ValueError("Enter a nonempty message.")
     settings = InferenceSettings.from_environment()
     async with httpx.AsyncClient() as client:
         provider = OpenRouterProvider(settings, client)
@@ -58,6 +65,9 @@ async def chat(engine: Engine, args: argparse.Namespace) -> None:
         thread_id = args.thread or store.create(selected)
         store.load_agent(thread_id)
         print(f"Thread: {thread_id}")
+        print(
+            f"Model: {settings.generation_model} (reasoning: {settings.reasoning_effort})"
+        )
         if args.thread:
             for record in store.history(thread_id):
                 if record.kind in (
@@ -71,19 +81,14 @@ async def chat(engine: Engine, args: argparse.Namespace) -> None:
                             if record.kind == ThreadRecordKind.USER_MESSAGE
                             else "Moseby"
                         )
-                        print(f"{who}: {text}")
+                        print(f"{speaker_label(who)} {text}")
         while True:
             if args.message is not None:
                 text = args.message
             else:
-                try:
-                    text = input("You: ").strip()
-                except EOFError:
+                text = read_message()
+                if text is None:
                     return
-                if text == "/exit":
-                    return
-                if not text:
-                    continue
             result = await run_turn(
                 store,
                 provider,
@@ -92,10 +97,30 @@ async def chat(engine: Engine, args: argparse.Namespace) -> None:
                 request_id=new_id("request"),
                 provider_name="openrouter",
                 model=settings.generation_model,
+                on_tool_start=lambda name: print(f"  • {name}", flush=True),
+                on_inference_start=waiting_for_model,
             )
-            print(f"Moseby: {result.text or result.reason or result.status.value}")
+            print_turn_result(result)
             if args.message is not None:
                 return
+
+
+def print_turn_result(result: TurnResult) -> None:
+    """Separate the assistant's reply from a runtime stop and its saved tool outcomes."""
+    if result.status == RunStatus.COMPLETED:
+        print(f"{speaker_label('Moseby')} {result.text or 'Run completed.'}")
+        return
+    print(f"Run stopped: {result.reason or result.status.value}.")
+    if result.tool_outcomes:
+        print("Saved tool outcomes (successful changes remain in place):")
+        for outcome in result.tool_outcomes:
+            status = (
+                "succeeded"
+                if outcome.status == ToolResultStatus.SUCCEEDED
+                else "failed"
+            )
+            print(f"  • {outcome.name}: {status}")
+    print("You can send another message; it starts a new run with its own budget.")
 
 
 def main() -> None:

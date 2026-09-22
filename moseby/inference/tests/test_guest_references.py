@@ -41,13 +41,13 @@ class GuestReferencePolicyTests(unittest.TestCase):
     def test_multiple_guests_can_match_and_thresholds_are_inclusive(self):
         """A clear group reference can identify both guests; boundary scores follow the policy."""
         output = self.answers(
-            **{AMBIGUITY_QUESTION: 0.1, self.guests[0].id: 0.9, self.guests[1].id: 0.99}
+            **{AMBIGUITY_QUESTION: 0.2, self.guests[0].id: 0.7, self.guests[1].id: 0.99}
         )
         self.assertEqual(
             resolve(self.request, output).guest_ids, [guest.id for guest in self.guests]
         )
         output.answers[self.guests[1].id] = BooleanAnswer(
-            kind=ClassificationKind.BOOLEAN, probability=0.1
+            kind=ClassificationKind.BOOLEAN, probability=0.2
         )
         self.assertEqual(resolve(self.request, output).guest_ids, [self.guests[0].id])
 
@@ -65,6 +65,25 @@ class GuestReferencePolicyTests(unittest.TestCase):
                 result = resolve(self.request, output)
                 self.assertEqual(result.status, GuestReferenceStatus.AMBIGUOUS)
                 self.assertEqual(result.guest_ids, [self.guests[0].id])
+
+    def test_transcript_scores_resolve_patel_but_leave_morgan_uncertain(self):
+        """The provisional thresholds accept the clear Patel score without forcing a weak Morgan match."""
+        for probabilities, status, ids in (
+            ((0.09, 0.04, 0.8), GuestReferenceStatus.RESOLVED, [self.guests[1].id]),
+            ((0.31, 0.42, 0.04), GuestReferenceStatus.AMBIGUOUS, []),
+        ):
+            output = self.answers(
+                **dict(
+                    zip(
+                        (AMBIGUITY_QUESTION, self.guests[0].id, self.guests[1].id),
+                        probabilities,
+                        strict=True,
+                    )
+                )
+            )
+            decision = resolve(self.request, output)
+            self.assertEqual(decision.status, status)
+            self.assertEqual(decision.guest_ids, ids)
 
     def test_unrequested_ids_and_oversized_input_are_rejected(self):
         """An invented answer cannot become a reference, and oversized notes cannot be dispatched."""

@@ -147,9 +147,66 @@ class OpenRouterTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(json.loads(sent.content), result.request)
         self.assertEqual(result.request["model"], SETTINGS.generation_model)
         self.assertFalse(result.request["stream"])
+        self.assertEqual(
+            result.request["reasoning"], {"effort": "low", "enabled": True}
+        )
+        self.assertEqual(result.request["max_tokens"], 4096)
+        self.assertEqual(result.request["provider"], {"require_parameters": True})
         self.assertNotIn("tools", result.request)
         self.assertEqual(result.response, chat_response())
         self.assertNotIn("test-secret", result.model_dump_json())
+
+    async def test_usage_keeps_cache_and_reasoning_counts_without_double_counting(self):
+        """Cache reads are tracked separately; cache writes and reasoning still consume the run budget."""
+        response = chat_response()
+        response["usage"] = {
+            "prompt_tokens": 1000,
+            "completion_tokens": 200,
+            "total_tokens": 1200,
+            "prompt_tokens_details": {"cached_tokens": 800, "cache_write_tokens": 100},
+            "completion_tokens_details": {"reasoning_tokens": 150},
+        }
+        self.response = httpx.Response(200, json=response)
+        result = await self.provider.generate(self.request)
+        self.assertEqual(result.total_tokens, 1200)
+        self.assertEqual(result.usage.budget_tokens, 400)
+        self.assertEqual(result.usage.cache_write_tokens, 100)
+        self.assertEqual(result.usage.reasoning_tokens, 150)
+        response["usage"]["prompt_tokens_details"]["cached_tokens"] = 2000
+        self.response = httpx.Response(200, json=response)
+        result = await self.provider.generate(self.request)
+        self.assertIsNone(result.usage)
+        self.assertEqual(result.total_tokens, 1200)
+
+    async def test_inconsistent_reasoning_subtotal_preserves_valid_cache_accounting(
+        self,
+    ):
+        """A provider's oversized reasoning subtotal cannot turn cached input into fresh work."""
+        for inputs, outputs, cached, reasoning, expected in (
+            (16116, 603, 15616, 627, 1103),
+            (16871, 311, 15872, 312, 1310),
+        ):
+            response = chat_response()
+            response["usage"] = {
+                "prompt_tokens": inputs,
+                "completion_tokens": outputs,
+                "total_tokens": inputs + outputs,
+                "prompt_tokens_details": {
+                    "cached_tokens": cached,
+                    "cache_write_tokens": 0,
+                },
+                "completion_tokens_details": {"reasoning_tokens": reasoning},
+            }
+            self.response = httpx.Response(200, json=response)
+            result = await self.provider.generate(self.request)
+            self.assertEqual(result.usage.budget_tokens, expected)
+            self.assertIsNone(result.usage.reasoning_tokens)
+            self.assertEqual(
+                result.response["usage"]["completion_tokens_details"][
+                    "reasoning_tokens"
+                ],
+                reasoning,
+            )
 
     async def test_tool_round_trip_keeps_call_ids_and_provider_reasoning(self):
         """Parallel calls to the same tool keep their IDs when results go back to the model."""
@@ -399,6 +456,32 @@ class OpenRouterTests(unittest.IsolatedAsyncioTestCase):
                 self.assertEqual(error.exception.code, code)
                 self.assertNotIn("private prompt", str(error.exception))
                 self.assertEqual(len(self.requests), before + 1)
+
+    async def test_missing_route_names_the_model_without_echoing_provider_text(self):
+        """A routing failure identifies the selected model and offers a safe next step."""
+        self.response = httpx.Response(
+            404, json={"error": {"message": "private prompt"}}
+        )
+        for operation, request, model, hint in (
+            (
+                self.provider.generate,
+                self.request,
+                SETTINGS.generation_model,
+                "reasoning",
+            ),
+            (
+                self.provider.classify,
+                classification_request(),
+                SETTINGS.classification_model,
+                "decisions",
+            ),
+        ):
+            with self.assertRaises(InferenceError) as error:
+                await operation(request)
+            self.assertEqual(error.exception.status_code, 404)
+            self.assertIn(model, str(error.exception))
+            self.assertIn(hint, str(error.exception))
+            self.assertNotIn("private prompt", str(error.exception))
 
     async def test_cancellation_reaches_the_callers_run_loop(self):
         """Cancelling the awaiting task stays a cancellation rather than a provider error."""

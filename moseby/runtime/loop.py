@@ -1,6 +1,7 @@
 """Drive one user turn through inference, queued tools and a final reply."""
 
 import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from enum import StrEnum
 
@@ -8,6 +9,7 @@ from moseby.identifiers import RunId, ThreadId
 from moseby.inference.errors import InferenceError
 from moseby.inference.provider import InferenceProvider
 from moseby.runtime.models.common import ErrorDetails
+from moseby.runtime.models.messages import ToolResultStatus
 from moseby.runtime.models.thread_records import ThreadRecordKind
 
 from .context import prepare_context
@@ -22,12 +24,19 @@ class RunErrorCode(StrEnum):
 
 
 @dataclass(frozen=True)
+class ToolOutcome:
+    name: str
+    status: ToolResultStatus
+
+
+@dataclass(frozen=True)
 class TurnResult:
     thread_id: ThreadId
     run_id: RunId
     status: RunStatus
     text: str | None
     reason: str | None = None
+    tool_outcomes: tuple[ToolOutcome, ...] = ()
 
 
 async def run_turn(
@@ -39,6 +48,8 @@ async def run_turn(
     request_id: str,
     provider_name: str,
     model: str,
+    on_tool_start: Callable[[str], None] | None = None,
+    on_inference_start: Callable[[], None] | None = None,
 ) -> TurnResult:
     """Run until the model answers, a limit is reached or execution fails.
 
@@ -65,15 +76,19 @@ async def run_turn(
                     else "Token budget reached"
                 )
                 store.finish(run_id, RunStatus.FAILED, reason)
-                return TurnResult(thread_id, run_id, RunStatus.FAILED, None, reason)
+                return _saved_result(store, thread_id, run_id)
 
             # Recheck authority and build context from the accepted history each time.
             agent = store.load_agent(thread_id)
             context = prepare_context(agent, store.history(thread_id))
+            # Bound generation by what remains; fresh input usage arrives with the response.
+            context.request.max_output_tokens = agent.definition.token_budget - tokens
             # Save the input before awaiting the provider, with the transaction closed.
             inference_id, source_record_id = store.prepare(
                 thread_id, run_id, context, provider=provider_name, model=model
             )
+            if on_inference_start is not None:
+                on_inference_start()
             result = await provider.generate(context.request)
             # Access may have changed while we waited for the model.
             store.load_agent(thread_id)
@@ -92,11 +107,13 @@ async def run_turn(
                 )
 
             # Each accepted call already has a job and task before execution begins.
-            await execute_tool_batch(store, thread_id, run_id, work)
+            await execute_tool_batch(
+                store, thread_id, run_id, work, on_tool_start=on_tool_start
+            )
 
         reason = "Generation turn limit reached"
         store.finish(run_id, RunStatus.FAILED, reason)
-        return TurnResult(thread_id, run_id, RunStatus.FAILED, None, reason)
+        return _saved_result(store, thread_id, run_id)
     except BaseException as error:
         # Save the failure so this run stops holding the thread open.
         status, detail = _failure_details(error)
@@ -109,21 +126,45 @@ async def run_turn(
 def _saved_result(
     store: ConversationStore, thread_id: ThreadId, run_id: RunId
 ) -> TurnResult:
-    """Return a finished run's last assistant reply when its request is repeated."""
+    """Read a finished run's reply, stop reason and saved tool outcomes."""
     run = store.get_run(run_id)
     if run.finished_at is None:
         raise ValueError("This request already has an active run")
+    records = [record for record in store.history(thread_id) if record.run_id == run_id]
     replies = [
         record
-        for record in store.history(thread_id)
-        if record.run_id == run_id and record.kind == ThreadRecordKind.ASSISTANT_MESSAGE
+        for record in records
+        if record.kind == ThreadRecordKind.ASSISTANT_MESSAGE
     ]
-    return TurnResult(
-        thread_id,
-        run_id,
-        run.status,
-        replies[-1].payload.get("text") if replies else None,
+    calls = {
+        (record.id, call["id"]): call["name"]
+        for record in replies
+        for call in record.payload.get("tool_calls", [])
+    }
+    outcomes = tuple(
+        ToolOutcome(
+            calls[(record.source_record_id, record.tool_call_id)],
+            ToolResultStatus(record.payload["status"]),
+        )
+        for record in records
+        if record.kind == ThreadRecordKind.TOOL_RESULT
     )
+    reason = next(
+        (
+            record.payload["data"].get("reason")
+            for record in reversed(records)
+            if record.kind == ThreadRecordKind.CONTROL_EVENT
+            and record.payload.get("name") == "run.finished"
+        ),
+        None,
+    )
+    # A stopped run can have completed tools without a final assistant reply.
+    text = (
+        replies[-1].payload.get("text")
+        if replies and run.status == RunStatus.COMPLETED
+        else None
+    )
+    return TurnResult(thread_id, run_id, run.status, text, reason, outcomes)
 
 
 def _failure_details(error: BaseException) -> tuple[RunStatus, ErrorDetails]:

@@ -25,7 +25,6 @@ from moseby.db.repositories import (
     request_deduplication,
 )
 from moseby.db.repositories._writes import require_found
-from moseby.db.timestamps import to_datetime
 from moseby.domain.enums import GuestReferenceStatus
 from moseby.identifiers import (
     HotelId,
@@ -56,6 +55,7 @@ from moseby.runtime.models.thread_records import (
     ThreadRecordKind,
 )
 from moseby.services.guests import READ_PERMISSION, WRITE_PERMISSION
+from moseby.services.party_details import to_contract
 from moseby.tools.definitions import ToolContext
 
 from .tool_writes import claimed_write
@@ -87,13 +87,6 @@ class PendingReferences:
     inference_id: InferenceRequestId
     marker_id: ThreadRecordId
     candidates: list[GuestCandidate]
-
-
-def to_contract(note: PartyDetailRow) -> PartyDetail:
-    return PartyDetail.model_validate(
-        note.model_dump(exclude={"updated_at"})
-        | {"created_at": to_datetime(note.created_at)}
-    )
 
 
 @dataclass(frozen=True)

@@ -2,9 +2,11 @@
 
 from collections.abc import Sequence
 
+from pydantic import ValidationError
 from sqlalchemy import Connection, insert, null, select, update
 
 from moseby.common.types import JsonObject
+from moseby.common.usage import TokenUsage
 from moseby.identifiers import InferenceRequestId, RunId, StaffMemberId, ThreadRecordId
 from moseby.runtime.enums import InferenceStatus
 from moseby.runtime.models.common import ErrorDetails
@@ -168,7 +170,7 @@ def finish(
 def token_usage(
     connection: Connection, run_id: RunId, *, creator_staff_member_id: StaffMemberId
 ) -> int | None:
-    """Total reported tokens for this run; any unreported attempt makes usage unknown."""
+    """Count uncached input and output for this run; missing usage leaves the budget unknown."""
     responses = connection.scalars(
         select(inference_requests.c.response_json).where(
             inference_requests.c.run_id == run_id,
@@ -182,5 +184,12 @@ def token_usage(
         used = response.get("total_tokens") if isinstance(response, dict) else None
         if type(used) is not int or used < 0:
             return None
+        breakdown = response.get("usage")
+        if breakdown is not None:
+            try:
+                used = TokenUsage.model_validate(breakdown).budget_tokens
+            except ValidationError:
+                return None
+        # Older or incomplete responses count their full total conservatively.
         total += used
     return total

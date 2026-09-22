@@ -2,7 +2,7 @@
 
 import os
 from collections.abc import Mapping
-from typing import Self
+from typing import Literal, Self
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator
 
@@ -13,6 +13,8 @@ class InferenceSettings(BaseModel):
     openrouter_api_key: SecretStr = Field(exclude=True, repr=False)
     generation_model: str = Field(min_length=1)
     classification_model: str = Field(min_length=1)
+    reasoning_effort: Literal["low", "medium", "high"] = "low"
+    max_output_tokens: int = Field(default=4096, gt=0)
 
     @field_validator("openrouter_api_key")
     @classmethod
@@ -33,12 +35,14 @@ class InferenceSettings(BaseModel):
 
     @classmethod
     def from_environment(cls, environment: Mapping[str, str] | None = None) -> Self:
-        """Read the key and both model names when the application starts."""
+        """Read credentials, model names and generation limits when the application starts."""
         environment = os.environ if environment is None else environment
         names = {
             "openrouter_api_key": "OPENROUTER_API_KEY",
             "generation_model": "MOSEBY_GENERATION_MODEL",
             "classification_model": "MOSEBY_CLASSIFICATION_MODEL",
+            "reasoning_effort": "MOSEBY_REASONING_EFFORT",
+            "max_output_tokens": "MOSEBY_MAX_OUTPUT_TOKENS",
         }
         return cls.model_validate(
             {

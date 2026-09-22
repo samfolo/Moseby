@@ -18,6 +18,7 @@ from moseby.contracts.stays import (
     CreateStayRequestPayload,
     GetStayRequestPayload,
     Stay,
+    StayRoom,
 )
 from moseby.db.errors import WriteConflict
 from moseby.db.models.bookings import NewBooking
@@ -30,18 +31,26 @@ from moseby.db.operations import commands
 from moseby.db.operations import stays as stay_operations
 from moseby.db.pagination import Page as DatabasePage
 from moseby.db.pagination import PageRequest as DatabasePageRequest
-from moseby.db.repositories import bookings, guests, parties, room_reservations, rooms
+from moseby.db.repositories import (
+    bookings,
+    guests,
+    parties,
+    room_keys,
+    room_reservations,
+    rooms,
+)
 from moseby.db.timestamps import to_datetime, to_microseconds
 from moseby.db.transaction import transaction
 from moseby.identifiers import BookingId, HotelId, RoomId, new_id
 from moseby.permissions import Permission
 
 from . import guests as guest_service
+from . import room_keys as key_service
+from ._booking_access import READ_PERMISSION as READ_PERMISSION
+from ._booking_access import WRITE_PERMISSION as WRITE_PERMISSION
 from ._prices import nightly_price
 from .access import require_permission
 
-READ_PERMISSION = Permission("moseby.bookings:read")
-WRITE_PERMISSION = Permission("moseby.bookings:write")
 READ_PERMISSIONS = (READ_PERMISSION, guest_service.READ_PERMISSION)
 WRITE_PERMISSIONS = (*READ_PERMISSIONS, WRITE_PERMISSION)
 CREATE_PERMISSIONS = (*WRITE_PERMISSIONS, guest_service.WRITE_PERMISSION)
@@ -99,7 +108,9 @@ def _booking(connection: Connection, id: BookingId, hotel_id: HotelId) -> Bookin
     )
 
 
-def _stay(connection: Connection, id: BookingId, hotel_id: HotelId) -> Stay:
+def _stay(
+    connection: Connection, id: BookingId, hotel_id: HotelId, *, now: int
+) -> Stay:
     booking = _booking(connection, id, hotel_id)
     party = parties.find_by_booking_id(connection, id, hotel_id=hotel_id)
     if party is None:
@@ -117,11 +128,23 @@ def _stay(connection: Connection, id: BookingId, hotel_id: HotelId) -> Stay:
             id=party.id, booking_id=id, created_at=to_datetime(party.created_at)
         ),
         guests=[guest_service.to_contract(person) for person in people],
+        room_keys=[
+            key_service.to_contract(key)
+            for key in _all_rows(
+                lambda page: room_keys.find_all_by_booking_id(
+                    connection, id, hotel_id=hotel_id, now=now, page=page
+                )
+            )
+        ],
     )
 
 
 def get(
-    engine: Engine, request: GetStayRequestPayload, *, context: AgentDomainContext
+    engine: Engine,
+    request: GetStayRequestPayload,
+    *,
+    context: AgentDomainContext,
+    now: int,
 ) -> Stay:
     """Resolve one stay by booking or guest ID within a consistent snapshot."""
     for permission in READ_PERMISSIONS:
@@ -143,7 +166,7 @@ def get(
             if party is None:
                 raise WriteConflict("The guest has no accessible party.")
             id = party.booking_id
-        return _stay(connection, id, context.hotel_id)
+        return _stay(connection, id, context.hotel_id, now=now)
 
 
 def get_booking(
@@ -211,7 +234,7 @@ def _command(
     def apply():
         # Capture the response before committing, so retries see this exact outcome.
         id = action()
-        return _stay(connection, id, context.hotel_id).model_dump(mode="json")
+        return _stay(connection, id, context.hotel_id, now=now).model_dump(mode="json")
 
     saved = commands.execute(
         connection,
@@ -284,6 +307,49 @@ def create(
         action=action,
         now=now,
         permissions=CREATE_PERMISSIONS,
+    )
+
+
+def add_room(
+    connection: Connection,
+    id: BookingId,
+    request: StayRoom,
+    *,
+    context: AgentDomainContext,
+    request_id: str,
+    now: int,
+) -> Stay:
+    """Add an allocation to the existing booking while preserving its rooms and keys."""
+
+    def action():
+        if to_microseconds(request.date_range.max_date) <= now:
+            raise WriteConflict("Choose a room reservation that ends in the future.")
+        _check_quote(
+            connection, request.room_id, request.quoted_price, context.hotel_id
+        )
+        room_reservations.create(
+            connection,
+            NewRoomReservation(
+                id=new_id("room_reservation"),
+                booking_id=id,
+                room_id=request.room_id,
+                date_range=_dates(request.date_range),
+                price_id=request.quoted_price.price_id,
+                price_revision=request.quoted_price.revision,
+            ),
+            hotel_id=context.hotel_id,
+            now=now,
+        )
+        return id
+
+    return _command(
+        connection,
+        context=context,
+        request_id=request_id,
+        operation="stays.add_room",
+        request={"id": id, "payload": request.model_dump(mode="json")},
+        action=action,
+        now=now,
     )
 
 

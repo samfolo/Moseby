@@ -1,7 +1,7 @@
 """Execute one queued tool and deliver its durable result to the conversation."""
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 
 from moseby.db.errors import ClaimLost, WriteConflict
 from moseby.db.models.request_deduplication import RequestKey
@@ -38,11 +38,15 @@ async def execute_tool_batch(
     thread_id: ThreadId,
     run_id: RunId,
     work: Sequence[AcceptedTool],
+    *,
+    on_tool_start: Callable[[str], None] | None = None,
 ) -> None:
     """Run calls in order and record unstarted calls when the batch is cancelled."""
     for index, item in enumerate(work):
         try:
-            await execute_queued_tool(store, thread_id, run_id, item)
+            await execute_queued_tool(
+                store, thread_id, run_id, item, on_tool_start=on_tool_start
+            )
         except asyncio.CancelledError:
             # Save results for unstarted calls so the next turn has a complete exchange.
             skipped = ErrorDetails(
@@ -63,6 +67,7 @@ async def execute_queued_tool(
     work: AcceptedTool,
     *,
     skip_error: ErrorDetails | None = None,
+    on_tool_start: Callable[[str], None] | None = None,
 ) -> None:
     """Claim one task, run its handler outside SQL, then commit its outcome and delivery."""
     actor = store.staff_member_id
@@ -101,6 +106,8 @@ async def execute_queued_tool(
         if skip_error is not None:
             outcome = JobOutcome(status=JobStatus.FAILED, error=skip_error)
         else:
+            if on_tool_start is not None:
+                on_tool_start(call.name)
             agent = store.load_agent(thread_id)
             context = ToolContext(
                 domain_context=agent.domain_context,

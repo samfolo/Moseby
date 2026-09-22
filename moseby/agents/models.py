@@ -35,7 +35,7 @@ class AgentDefinition(AgentReference):
     token_budget: int = Field(
         gt=0,
         strict=True,
-        description="Total input and output tokens across generation and classification in one run.",
+        description="Uncached input plus all output across generation and classification in one run; missing cache details count fully.",
     )
 
     @field_validator("display_name", "description", "system_prompt")

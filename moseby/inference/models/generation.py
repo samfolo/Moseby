@@ -35,6 +35,7 @@ class ToolDefinition(InferenceModel):
 
 
 class GenerationRequest(InferenceModel):
+    max_output_tokens: int | None = Field(default=None, gt=0, strict=True)
     messages: list[ChatMessage] = Field(min_length=1)
     tools: list[ToolDefinition] = Field(default_factory=list)
 

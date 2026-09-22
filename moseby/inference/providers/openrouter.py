@@ -14,6 +14,7 @@ from .openrouter_models import (
     read_chat_response,
     read_decisions_response,
 )
+from .openrouter_usage import read_usage, total_tokens
 
 _TIMEOUT = httpx.Timeout(60, connect=10)
 
@@ -30,6 +31,12 @@ class OpenRouterProvider:
     ) -> InferenceResult[AssistantMessage]:
         """Return a complete assistant reply, including any requested tool calls."""
         body = chat_body(request, self._settings.generation_model)
+        body["reasoning"] = {"effort": self._settings.reasoning_effort, "enabled": True}
+        body["max_tokens"] = min(
+            self._settings.max_output_tokens,
+            request.max_output_tokens or self._settings.max_output_tokens,
+        )
+        body["provider"] = {"require_parameters": True}
         response = await self._post(OPENROUTER_CHAT_COMPLETIONS_URL, body)
         try:
             output = read_chat_response(response)
@@ -42,7 +49,8 @@ class OpenRouterProvider:
             output=output,
             request=body,
             response=response,
-            total_tokens=_total_tokens(response),
+            total_tokens=total_tokens(response),
+            usage=read_usage(response),
         )
 
     async def classify(
@@ -63,7 +71,8 @@ class OpenRouterProvider:
             output=output,
             request=body,
             response=response,
-            total_tokens=_total_tokens(response),
+            total_tokens=total_tokens(response),
+            usage=read_usage(response),
         )
 
     async def _post(self, url: str, body: JsonObject) -> JsonObject:
@@ -89,9 +98,17 @@ class OpenRouterProvider:
 
         # Provider error bodies may echo prompts. Keep those out of exception messages.
         if not response.is_success:
+            message = f"OpenRouter returned HTTP {response.status_code} for model {body['model']!r}."
+            if response.status_code == 404:
+                message += (
+                    " Check the model ID and whether its providers support the requested settings."
+                    " Chat generation requires reasoning and tool support."
+                    if url == OPENROUTER_CHAT_COMPLETIONS_URL
+                    else " Check that the classification model is available on the decisions endpoint."
+                )
             raise InferenceError(
                 InferenceErrorCode.HTTP_ERROR,
-                f"OpenRouter returned HTTP {response.status_code}.",
+                message,
                 status_code=response.status_code,
             )
         try:
@@ -106,16 +123,3 @@ class OpenRouterProvider:
                 "OpenRouter could not complete the request.",
             )
         return payload
-
-
-def _total_tokens(response: JsonObject) -> int | None:
-    """Read reported usage without treating an absent or malformed count as zero."""
-    usage = response.get("usage")
-    total = usage.get("total_tokens") if isinstance(usage, dict) else None
-    if type(total) is int and total >= 0:
-        return total
-    if isinstance(usage, dict):
-        counts = (usage.get("input_tokens"), usage.get("output_tokens"))
-        if all(type(count) is int and count >= 0 for count in counts):
-            return sum(counts)
-    return None

@@ -13,8 +13,8 @@ from .models.classification import (
 )
 from .models.common import InferenceModel
 
-MATCH_THRESHOLD = 0.9
-NO_MATCH_THRESHOLD = 0.1
+MATCH_THRESHOLD = 0.7
+NO_MATCH_THRESHOLD = 0.2
 MAX_REQUEST_BYTES = 24_000
 AMBIGUITY_QUESTION = "ambiguous_reference"
 

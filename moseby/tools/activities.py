@@ -107,7 +107,7 @@ def create_tools(engine: Engine) -> tuple[Tool, ...]:
         ),
         Tool(
             name="reserve_activity_places",
-            description="Reserve one place for each selected guest in an existing activity, all together or none. Use IDs returned by guest and activity searches. The staff member must choose or authorize the activity and its displayed price. Check the itinerary for clashes and discuss them; overlaps are allowed when intended.",
+            description="Reserve one place for each selected guest in an existing activity, all together or none. For a group, send all guest IDs in one call so the activity booking-size rule is checked against the whole group. Use IDs returned by guest and activity searches. The staff member must choose or authorize the activity and its displayed price. Check the itinerary for clashes and discuss them; overlaps are allowed when intended.",
             arguments=ReserveActivityRequestPayload,
             result=ActivityReservations,
             required_permissions=(activity_reservations.WRITE_PERMISSION,),

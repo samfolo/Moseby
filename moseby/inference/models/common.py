@@ -3,6 +3,7 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field
 
 from moseby.common.types import JsonObject
+from moseby.common.usage import TokenUsage
 
 type Probability = Annotated[float, Field(ge=0, le=1)]
 
@@ -18,6 +19,7 @@ class InferenceResult[Output](InferenceModel):
         strict=True,
         description="Reported input and output tokens; null means usage is unavailable.",
     )
+    usage: TokenUsage | None = None
     output: Output
     request: JsonObject = Field(description="JSON body sent to the inference provider.")
     response: JsonObject = Field(

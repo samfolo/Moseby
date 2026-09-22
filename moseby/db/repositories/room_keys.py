@@ -98,6 +98,25 @@ def find_by_id(
     return RoomKeyRow.model_validate(dict(row)) if row is not None else None
 
 
+def find_all(
+    connection: Connection,
+    *,
+    hotel_id: HotelId,
+    now: int,
+    page: PageRequest | None = None,
+) -> Page[RoomKeyRow]:
+    """List this hotel's keys in creation order, including expired and deactivated keys."""
+    return read_page(
+        connection,
+        _select(hotel_id, now),
+        table=room_keys,
+        row_type=RoomKeyRow,
+        page=page or PageRequest(),
+        query="room_keys.find_all",
+        criteria={"hotel_id": hotel_id},
+    )
+
+
 def find_all_by_booking_id(
     connection: Connection,
     booking_id: BookingId,

@@ -11,13 +11,19 @@ from moseby.contracts.stays import (
     CreateStayRequestPayload,
     GetStayRequestPayload,
     Stay,
+    StayRoom,
 )
 from moseby.identifiers import BookingId
+from moseby.runtime.storage import now_microseconds
 from moseby.runtime.tool_writes import claimed_write
 from moseby.services import stays
 
 from .definitions import Tool, ToolContext
 from .errors import report_errors
+
+
+class AddStayRoomArguments(StayRoom):
+    booking_id: BookingId
 
 
 class AmendStayArguments(AmendStayRequestPayload):
@@ -38,7 +44,11 @@ def create_tools(engine: Engine) -> tuple[Tool, ...]:
     async def get_stay(context: ToolContext, arguments: GetStayRequestPayload) -> Stay:
         with report_errors():
             return await asyncio.to_thread(
-                stays.get, engine, arguments, context=context.domain_context
+                stays.get,
+                engine,
+                arguments,
+                context=context.domain_context,
+                now=now_microseconds(),
             )
 
     async def create_stay(
@@ -51,6 +61,25 @@ def create_tools(engine: Engine) -> tuple[Tool, ...]:
                 return stays.create(
                     connection,
                     arguments,
+                    context=context.domain_context,
+                    request_id=context.request_id,
+                    now=now,
+                )
+
+        with report_errors():
+            return await asyncio.to_thread(write)
+
+    async def add_room_to_stay(
+        context: ToolContext, arguments: AddStayRoomArguments
+    ) -> Stay:
+        def write():
+            with claimed_write(
+                engine, context, permissions=stays.WRITE_PERMISSIONS
+            ) as (connection, now):
+                return stays.add_room(
+                    connection,
+                    arguments.booking_id,
+                    StayRoom(**arguments.model_dump(exclude={"booking_id"})),
                     context=context.domain_context,
                     request_id=context.request_id,
                     now=now,
@@ -120,8 +149,16 @@ def create_tools(engine: Engine) -> tuple[Tool, ...]:
 
     return (
         Tool(
+            name="add_room_to_stay",
+            description="Add another room to an existing booking, keeping its current rooms and keys. Read the stay and search availability for the requested dates; copy quoted_price from room search and obtain authorization for the rate. Use this when one guest needs a separate room. The result records the party's room allocations, not who sleeps where; issue a key for the returned new allocation if requested.",
+            arguments=AddStayRoomArguments,
+            result=Stay,
+            required_permissions=stays.WRITE_PERMISSIONS,
+            handler=add_room_to_stay,
+        ),
+        Tool(
             name="get_stay",
-            description="Read a stay's booking, party, guests and room allocations by booking ID or guest ID. Returns current revisions and agreed nightly prices for changes.",
+            description="Read a stay's booking, party, guests, room allocations and issued keys by booking ID or guest ID. Returns current revisions and agreed nightly prices for changes.",
             arguments=GetStayRequestPayload,
             result=Stay,
             required_permissions=stays.READ_PERMISSIONS,

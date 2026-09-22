@@ -6,9 +6,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from moseby.identifiers import (
     HotelId,
-    PartyDetailId,
     PartyId,
-    RoomKeyId,
     StaffMemberId,
     VenueId,
 )
@@ -19,9 +17,7 @@ from .parties import Party, SearchPartiesRequest
 from .party_details import (
     CreatePartyDetailRequest,
     PartyDetail,
-    SearchPartyDetailsRequest,
 )
-from .room_keys import DeactivateRoomKeyRequest, IssueRoomKeyRequest, RoomKey
 from .route_metadata import access, query_body
 from .staff_members import StaffMember
 from .venues import Venue
@@ -101,25 +97,6 @@ def search_parties(request: SearchPartiesRequest) -> Page[Party]:
     not_implemented()
 
 
-@router.get(
-    "/party-details/{id}",
-    operation_id="getPartyDetail",
-    openapi_extra=access("moseby.guests:read"),
-)
-def get_party_detail(id: PartyDetailId) -> PartyDetail:
-    not_implemented()
-
-
-@router.api_route(
-    "/party-details",
-    methods=["QUERY"],
-    operation_id="searchPartyDetails",
-    openapi_extra=query_body(SearchPartyDetailsRequest, "moseby.guests:read"),
-)
-def search_party_details(request: SearchPartyDetailsRequest) -> Page[PartyDetail]:
-    not_implemented()
-
-
 @router.post(
     "/party-details",
     operation_id="createPartyDetail",
@@ -128,41 +105,4 @@ def search_party_details(request: SearchPartyDetailsRequest) -> Page[PartyDetail
     openapi_extra=access("moseby.guests:write"),
 )
 def create_party_detail(request: CreatePartyDetailRequest) -> PartyDetail:
-    not_implemented()
-
-
-@router.get(
-    "/room-keys",
-    operation_id="listRoomKeys",
-    openapi_extra=access("moseby.bookings:read"),
-)
-def list_room_keys(pagination: Pagination) -> Page[RoomKey]:
-    not_implemented()
-
-
-@router.get(
-    "/room-keys/{id}",
-    operation_id="getRoomKey",
-    openapi_extra=access("moseby.bookings:read"),
-)
-def get_room_key(id: RoomKeyId) -> RoomKey:
-    not_implemented()
-
-
-@router.post(
-    "/room-keys",
-    operation_id="issueRoomKey",
-    status_code=201,
-    openapi_extra=access("moseby.bookings:write"),
-)
-def issue_room_key(request: IssueRoomKeyRequest) -> RoomKey:
-    not_implemented()
-
-
-@router.post(
-    "/room-keys/{id}:deactivate",
-    operation_id="deactivateRoomKey",
-    openapi_extra=access("moseby.bookings:write"),
-)
-def deactivate_room_key(id: RoomKeyId, request: DeactivateRoomKeyRequest) -> RoomKey:
     not_implemented()

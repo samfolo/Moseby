@@ -4,6 +4,7 @@ import asyncio
 import json
 from unittest.mock import patch
 
+from pydantic import ValidationError
 from sqlalchemy import func, select
 
 from moseby.agents.agent import index_agent_definitions
@@ -13,20 +14,20 @@ from moseby.db.models.party_details import NewPartyDetail
 from moseby.db.repositories import party_details, room_keys
 from moseby.db.tests.fixtures import NOW, identifier
 from moseby.db.tests.gateway_fixtures import GatewayDatabaseTestCase
-from moseby.db.tests.inference_fixtures import ScriptedProvider
+from moseby.db.tests.inference_fixtures import ScriptedProvider, tool_call, tool_result
 from moseby.db.timestamps import to_datetime
 from moseby.db.transaction import transaction
 from moseby.domain.enums import BedType, BookingStatus, ContactPreference, StaffRole
-from moseby.inference.models.generation import AssistantMessage, ToolMessage
+from moseby.inference.models.generation import AssistantMessage
 from moseby.permissions import Permission
 from moseby.runtime.enums import RunStatus
 from moseby.runtime.guest_references import GuestReferenceRecorder
 from moseby.runtime.loop import run_turn
-from moseby.runtime.models.messages import ToolCall, ToolResultStatus
 from moseby.runtime.storage import ConversationStore
 from moseby.services import authority, stays
 from moseby.tools.concierge import create_tools
 from moseby.tools.definitions import index_tools
+from moseby.tools.guests import UpdateDietaryRequirementsArguments
 
 
 def dates(start=200, end=300):
@@ -34,24 +35,6 @@ def dates(start=200, end=300):
         "min_date": to_datetime(NOW + start).isoformat(),
         "max_date": to_datetime(NOW + end).isoformat(),
     }
-
-
-def latest_result(request):
-    message = next(
-        message
-        for message in reversed(request.messages)
-        if isinstance(message, ToolMessage)
-    )
-    result = json.loads(message.content)
-    if result["status"] != ToolResultStatus.SUCCEEDED:
-        raise AssertionError(result)
-    return result["result"]
-
-
-def call(tool_name, **arguments):
-    return AssistantMessage(
-        tool_calls=[ToolCall(id=tool_name, name=tool_name, arguments=arguments)]
-    )
 
 
 class StayJourneyTests(GatewayDatabaseTestCase):
@@ -142,6 +125,31 @@ class StayJourneyTests(GatewayDatabaseTestCase):
         self.assertEqual(
             self.client.get(f"/bookings/{stay['booking']['id']}").json(),
             stay["booking"],
+        )
+
+    def test_add_room_preserves_existing_allocation_and_replays_once(self):
+        """Adding a room extends the same booking; a duplicate request cannot add it twice."""
+        stay = self.create().json()
+        payload = {
+            "room_id": identifier("room", 3),
+            "date_range": dates(),
+            "quoted_price": self.quote,
+        }
+        response = self.command(stay["booking"]["id"], "add-room", payload)
+        self.assertEqual(response.status_code, 201, response.text)
+        rooms = response.json()["booking"]["room_reservations"]
+        self.assertEqual(len(rooms), 2)
+        original = stay["booking"]["room_reservations"][0]
+        self.assertIn(original, rooms)
+        self.assertEqual(
+            self.command(stay["booking"]["id"], "add-room", payload).json(),
+            response.json(),
+        )
+        self.assertEqual(
+            self.command(
+                stay["booking"]["id"], "add-room", payload, "another"
+            ).status_code,
+            409,
         )
 
     def test_quote_change_foreign_room_and_insufficient_capacity_roll_back(self):
@@ -345,6 +353,7 @@ class StayJourneyTests(GatewayDatabaseTestCase):
                 self.engine,
                 GetStayRequestPayload(booking_id=identifier("booking")),
                 context=context,
+                now=NOW,
             )
         operation = self.app.openapi()["paths"]["/bookings"]["post"]
         self.assertEqual(
@@ -363,15 +372,15 @@ class StayJourneyTests(GatewayDatabaseTestCase):
         state = {}
 
         def read_stay(request):
-            stay = latest_result(request)
+            stay = tool_result(request)
             state["booking_id"] = stay["booking"]["id"]
-            return call("get_stay", guest_id=stay["guests"][0]["id"])
+            return tool_call("get_stay", guest_id=stay["guests"][0]["id"])
 
         def amend_stay(request):
-            stay = latest_result(request)
+            stay = tool_result(request)
             room = stay["booking"]["room_reservations"][0]
             state["guest"] = stay["guests"][0]
-            return call(
+            return tool_call(
                 "amend_stay",
                 booking_id=stay["booking"]["id"],
                 room_reservation_id=room["id"],
@@ -383,9 +392,9 @@ class StayJourneyTests(GatewayDatabaseTestCase):
             )
 
         def update_guest(request):
-            latest_result(request)
+            tool_result(request)
             guest = state["guest"]
-            return call(
+            return tool_call(
                 "update_guest",
                 guest_id=guest["id"],
                 expected_updated_at=guest["updated_at"],
@@ -393,8 +402,8 @@ class StayJourneyTests(GatewayDatabaseTestCase):
             )
 
         def cancel_stay(request):
-            self.assertEqual(latest_result(request)["preferred_name"], "Samuel")
-            return call(
+            self.assertEqual(tool_result(request)["preferred_name"], "Samuel")
+            return tool_call(
                 "cancel_stay",
                 booking_id=state["booking_id"],
                 expected_revision=1,
@@ -403,12 +412,12 @@ class StayJourneyTests(GatewayDatabaseTestCase):
 
         def finish(request):
             self.assertEqual(
-                latest_result(request)["booking"]["status"], BookingStatus.CANCELLED
+                tool_result(request)["booking"]["status"], BookingStatus.CANCELLED
             )
             return AssistantMessage(text="The stay was cancelled.")
 
         provider = ScriptedProvider(
-            call("create_stay", **self.payload),
+            tool_call("create_stay", **self.payload),
             read_stay,
             amend_stay,
             update_guest,
@@ -447,3 +456,75 @@ class StayJourneyTests(GatewayDatabaseTestCase):
             )
         self.assertEqual(result.status, RunStatus.COMPLETED, result.reason)
         self.assertEqual(len(provider.requests), 6)
+
+    def test_dietary_tool_changes_only_dietary_requirements(self):
+        """A dietary request keeps the guest's existing contact details and rejects extra fields."""
+        for module in ("storage", "tool_worker", "tool_writes"):
+            patcher = patch(
+                f"moseby.runtime.{module}.now_microseconds", return_value=NOW + 3
+            )
+            patcher.start()
+            self.addCleanup(patcher.stop)
+        guest_id = identifier("guest")
+        with transaction(self.engine, write=True) as connection:
+            connection.execute(
+                self.metadata.tables["guests"]
+                .update()
+                .where(self.metadata.tables["guests"].c.id == guest_id)
+                .values(phone="+441234567890")
+            )
+            party_details.create(
+                connection,
+                NewPartyDetail(
+                    id=identifier("party_detail"),
+                    party_id=identifier("party"),
+                    text="Dan avoids peanuts.",
+                ),
+                hotel_id=identifier("hotel"),
+                now=NOW,
+            )
+        arguments = dict(
+            guest_id=guest_id,
+            expected_updated_at=to_datetime(NOW).isoformat(),
+            dietary_requirements="Avoids peanuts",
+            evidence_detail_id=identifier("party_detail"),
+        )
+        with self.assertRaises(ValidationError):
+            UpdateDietaryRequirementsArguments.model_validate(
+                arguments | {"phone": None}
+            )
+
+        def finish(request):
+            result = tool_result(request)
+            self.assertEqual(result["phone"], "+441234567890")
+            self.assertEqual(result["dietary_requirements"], "Avoids peanuts")
+            return AssistantMessage(text="Dietary requirements updated.")
+
+        provider = ScriptedProvider(
+            tool_call("update_guest_dietary_requirements", **arguments), finish
+        )
+        tools = index_tools(
+            create_tools(
+                self.engine,
+                GuestReferenceRecorder(self.engine, provider, "test", "classifier"),
+            )
+        )
+        store = ConversationStore(
+            self.engine,
+            identifier("staff_member"),
+            identifier("hotel"),
+            index_agent_definitions([definition()]),
+            tools,
+        )
+        result = asyncio.run(
+            run_turn(
+                store,
+                provider,
+                thread_id=store.create(definition()),
+                text="Update Dan's dietary requirements",
+                request_id="diet",
+                provider_name="test",
+                model="test",
+            )
+        )
+        self.assertEqual(result.status, RunStatus.COMPLETED, result.reason)
