@@ -1,5 +1,7 @@
 """Validated resource IDs; their shape does not prove that a resource exists."""
 
+import secrets
+import time
 from typing import Annotated
 
 from pydantic import Field
@@ -49,3 +51,11 @@ type AgentId = Annotated[
     str,
     Field(min_length=1, max_length=64, pattern=r"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"),
 ]
+
+
+def new_id(prefix: str) -> str:
+    """Create a prefixed ULID using the current millisecond and 80 random bits."""
+    alphabet = "0123456789ABCDEFGHJKMNPQRSTVWXYZ"
+    value = ((time.time_ns() // 1_000_000) << 80) | secrets.randbits(80)
+    encoded = "".join(alphabet[(value >> shift) & 31] for shift in range(125, -1, -5))
+    return f"{prefix}_{encoded}"

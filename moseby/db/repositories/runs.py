@@ -2,16 +2,19 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, Select, select
+from sqlalchemy import Connection, Select, insert, select, update
 
 from moseby.identifiers import AgentId, RunId, StaffMemberId, ThreadId
 from moseby.runtime.enums import RunStatus
 
+from ..errors import WriteConflict
 from ..models.runs import RunRow
 from ..pagination import Page, PageRequest, read_page
 from ..tables import runs
+from . import threads as threads_repository
 from ._queries import unique_ids
 from ._thread_queries import owned_thread_ids
+from ._writes import require_found, require_write_transaction
 
 
 def _select(creator_staff_member_id: StaffMemberId) -> Select:
@@ -135,4 +138,94 @@ def find_all_by_agent_id(
             "agent_id": agent_id,
             "agent_version": str(agent_version),
         },
+    )
+
+
+def create(
+    connection: Connection,
+    id: RunId,
+    thread_id: ThreadId,
+    *,
+    creator_staff_member_id: StaffMemberId,
+    now: int,
+) -> RunRow:
+    """Start one run with its thread's agent selection; reject another active run."""
+    require_write_transaction(connection)
+    thread = require_found(
+        threads_repository.find_by_id(
+            connection, thread_id, creator_staff_member_id=creator_staff_member_id
+        )
+    )
+    if (
+        thread.archived_at is not None
+        or find_active_by_thread_id(
+            connection, thread_id, creator_staff_member_id=creator_staff_member_id
+        )
+        is not None
+    ):
+        raise WriteConflict("The thread is archived or already has an active run")
+    connection.execute(
+        insert(runs).values(
+            id=id,
+            thread_id=thread_id,
+            agent_id=thread.agent_id,
+            agent_version=thread.agent_version,
+            status=RunStatus.RUNNING,
+            recovery_attempts=0,
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    return require_found(
+        find_by_id(connection, id, creator_staff_member_id=creator_staff_member_id)
+    )
+
+
+def require_running(
+    connection: Connection, id: RunId, *, creator_staff_member_id: StaffMemberId
+) -> RunRow:
+    """Reject stopped runs and pending cancellation before accepting more work."""
+    run = require_found(
+        find_by_id(connection, id, creator_staff_member_id=creator_staff_member_id)
+    )
+    if run.status != RunStatus.RUNNING or run.cancel_requested_at is not None:
+        raise WriteConflict("The run is stopped or cancellation was requested")
+    return run
+
+
+def finish(
+    connection: Connection,
+    id: RunId,
+    status: RunStatus,
+    *,
+    creator_staff_member_id: StaffMemberId,
+    now: int,
+) -> RunRow:
+    """Set the terminal state once; a retry of the same outcome returns the saved run."""
+    require_write_transaction(connection)
+    if status not in (RunStatus.COMPLETED, RunStatus.FAILED, RunStatus.CANCELLED):
+        raise ValueError("Finishing a run requires a terminal status")
+    saved = require_found(
+        find_by_id(connection, id, creator_staff_member_id=creator_staff_member_id)
+    )
+    if saved.finished_at is not None:
+        if saved.status != status:
+            raise WriteConflict("The run already finished with a different outcome")
+        return saved
+    if now < saved.updated_at:
+        raise WriteConflict("The finish time precedes the saved run")
+    if saved.cancel_requested_at is not None and status == RunStatus.COMPLETED:
+        raise WriteConflict("A cancelled run cannot be marked completed")
+    connection.execute(
+        update(runs)
+        .where(runs.c.id == id)
+        .values(
+            status=status,
+            finished_at=now,
+            updated_at=now,
+            wake_at=None,
+        )
+    )
+    return require_found(
+        find_by_id(connection, id, creator_staff_member_id=creator_staff_member_id)
     )

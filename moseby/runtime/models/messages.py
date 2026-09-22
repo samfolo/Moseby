@@ -21,6 +21,11 @@ class ToolCall(RuntimeModel):
 
 
 class AssistantMessagePayload(RuntimeModel):
+    provider_state: JsonObject = Field(
+        default_factory=dict,
+        exclude_if=lambda value: not value,
+        description="Opaque continuation fields returned with this assistant reply.",
+    )
     text: str | None = Field(default=None, min_length=1)
     tool_calls: list[ToolCall] = Field(default_factory=list)
 

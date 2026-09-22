@@ -2,18 +2,33 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, Select, select
+from sqlalchemy import Connection, Select, func, insert, select, update
 
-from moseby.identifiers import IncomingThreadRecordId, StaffMemberId, ThreadId
+from moseby.identifiers import (
+    IncomingThreadRecordId,
+    StaffMemberId,
+    ThreadId,
+    ThreadRecordId,
+)
+from moseby.runtime.models.incoming_thread_records import (
+    IncomingThreadRecordDeliveryMode,
+    IncomingThreadRecordKind,
+)
+from moseby.runtime.models.messages import UserMessagePayload
+from moseby.runtime.models.thread_records import ThreadRecordKind
 
+from ..errors import WriteConflict
 from ..models.incoming_thread_records import (
     IncomingThreadRecordFilters,
     IncomingThreadRecordRow,
 )
 from ..pagination import Page, PageRequest, read_sequence_page
 from ..tables import incoming_thread_records
+from . import thread_records as thread_records_repository
+from . import threads as threads_repository
 from ._queries import unique_ids
 from ._thread_queries import owned_thread_ids
+from ._writes import require_found, require_write_transaction
 
 
 def _select(creator_staff_member_id: StaffMemberId) -> Select:
@@ -136,4 +151,87 @@ def search(
             "creator_staff_member_id": creator_staff_member_id,
             "filters": filters.model_dump_json(),
         },
+    )
+
+
+def create(
+    connection: Connection,
+    id: IncomingThreadRecordId,
+    thread_id: ThreadId,
+    payload: UserMessagePayload,
+    *,
+    request_id: str,
+    creator_staff_member_id: StaffMemberId,
+    now: int,
+) -> IncomingThreadRecordRow:
+    """Save polite input at the next arrival position within an owned thread."""
+    require_write_transaction(connection)
+    require_found(
+        threads_repository.find_by_id(
+            connection, thread_id, creator_staff_member_id=creator_staff_member_id
+        )
+    )
+    sequence = (
+        connection.scalar(
+            select(
+                func.coalesce(func.max(incoming_thread_records.c.sequence), 0)
+            ).where(incoming_thread_records.c.thread_id == thread_id)
+        )
+        + 1
+    )
+    connection.execute(
+        insert(incoming_thread_records).values(
+            id=id,
+            thread_id=thread_id,
+            sequence=sequence,
+            kind=IncomingThreadRecordKind.USER_MESSAGE,
+            delivery_mode=IncomingThreadRecordDeliveryMode.POLITE,
+            actor_staff_member_id=creator_staff_member_id,
+            request_id=request_id,
+            format_version=1,
+            payload_json=payload.model_dump(mode="json"),
+            created_at=now,
+            updated_at=now,
+        )
+    )
+    return require_found(
+        find_by_id(connection, id, creator_staff_member_id=creator_staff_member_id)
+    )
+
+
+def mark_appended(
+    connection: Connection,
+    id: IncomingThreadRecordId,
+    record_id: ThreadRecordId,
+    *,
+    creator_staff_member_id: StaffMemberId,
+    now: int,
+) -> None:
+    """Link saved input to the matching user message in permanent history."""
+    require_write_transaction(connection)
+    incoming = require_found(
+        find_by_id(connection, id, creator_staff_member_id=creator_staff_member_id)
+    )
+    record = require_found(
+        thread_records_repository.find_by_id(
+            connection, record_id, creator_staff_member_id=creator_staff_member_id
+        )
+    )
+    if (
+        incoming.cancelled_at is not None
+        or now < incoming.updated_at
+        or record.thread_id != incoming.thread_id
+        or record.kind != ThreadRecordKind.USER_MESSAGE
+        or record.payload != incoming.payload
+        or record.actor_staff_member_id != incoming.actor_staff_member_id
+    ):
+        raise WriteConflict("The delivery must match this uncancelled input")
+    if incoming.record_id is not None:
+        if incoming.record_id != record_id:
+            raise WriteConflict("This input already has a different delivery")
+        return
+    connection.execute(
+        update(incoming_thread_records)
+        .where(incoming_thread_records.c.id == id)
+        .values(record_id=record_id, appended_at=now, updated_at=now)
     )

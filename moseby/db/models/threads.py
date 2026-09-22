@@ -2,7 +2,7 @@ from typing import Literal, Self
 
 from pydantic import Field, model_validator
 
-from moseby.agents.identity import AgentAttribution
+from moseby.agents.identity import AgentAttribution, AgentReference
 from moseby.identifiers import StaffMemberId, ThreadId
 from moseby.permissions import Permission
 from moseby.runtime.models.common import JsonObject
@@ -32,7 +32,7 @@ class ProjectionUpdate(Row):
         ge=0, description="Position of the saved summary when the runtime read it."
     )
     expected_history_sequence: int = Field(
-        ge=1, description="Last history position used to prepare the new summary."
+        ge=0, description="Last history position used to prepare the new summary."
     )
     value: JsonObject = Field(
         description="Summary including that history and the record being appended."
@@ -44,3 +44,11 @@ class ProjectionUpdate(Row):
         if self.expected_sequence > self.expected_history_sequence:
             raise ValueError("the projection cannot be ahead of its source history")
         return self
+
+
+class NewThread(Row):
+    id: ThreadId
+    creator_staff_member_id: StaffMemberId
+    agent: AgentReference
+    permissions: list[Permission]
+    title: str | None = None

@@ -12,6 +12,12 @@ class InferenceModel(BaseModel):
 
 
 class InferenceResult[Output](InferenceModel):
+    total_tokens: int | None = Field(
+        default=None,
+        ge=0,
+        strict=True,
+        description="Reported input and output tokens; null means usage is unavailable.",
+    )
     output: Output
     request: JsonObject = Field(description="JSON body sent to the inference provider.")
     response: JsonObject = Field(

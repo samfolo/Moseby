@@ -390,6 +390,21 @@ class ThreadRepositoryTests(StayDatabaseTestCase):
             )
             self.assertEqual([row.sequence for row in selected.items], [2])
 
+    def test_first_record_lookup_uses_sequence_and_respects_the_creator(self):
+        """The creation record comes first even when timestamps disagree; other threads stay private."""
+        with transaction(self.engine) as connection:
+            first = thread_records.find_first_by_thread_id(
+                connection, identifier("thread"), **self.scope
+            )
+            self.assertEqual(first.sequence, 1)
+            self.assertEqual(first.kind, ThreadRecordKind.THREAD_CREATED)
+            for number in (2, 99):
+                self.assertIsNone(
+                    thread_records.find_first_by_thread_id(
+                        connection, identifier("thread", number), **self.scope
+                    )
+                )
+
     def test_last_message_lookup_can_step_back_without_repeating_the_same_message(self):
         """When the caller asks for an earlier message, the current one is excluded."""
         with transaction(self.engine) as connection:

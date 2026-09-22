@@ -15,10 +15,6 @@ class TextMessage(InferenceModel):
 
 class AssistantMessage(AssistantMessagePayload):
     role: Literal["assistant"] = "assistant"
-    provider_state: JsonObject = Field(
-        default_factory=dict,
-        description="Opaque provider fields needed to continue this assistant reply.",
-    )
 
 
 class ToolMessage(InferenceModel):

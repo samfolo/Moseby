@@ -2699,6 +2699,9 @@ components:
       title: AssistantConversationRecord
     AssistantMessagePayload:
       properties:
+        provider_state:
+          $ref: '#/components/schemas/JsonObject'
+          description: Opaque continuation fields returned with this assistant reply.
         text:
           anyOf:
           - type: string

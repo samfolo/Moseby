@@ -4,10 +4,10 @@ Moseby is a Python experiment in helping resort staff look after their guests.
 The aim is an agent that can manage bookings, arrange activities and follow up
 when something needs attention.
 
-The database and repository methods are in place, and the inference provider can
-make model requests. Guest lookup, room search and activity browsing work over
-HTTP. Room search also has an agent tool. The agent loop, remaining API handlers
-and user interface still need to be connected.
+The terminal app saves conversations, calls a model and runs a room-search tool.
+Guest lookup, room search and activity browsing also work over HTTP. The database
+and repository methods cover the wider domain; more tools and API handlers will
+connect those capabilities to the concierge.
 
 ## Get started
 
@@ -34,7 +34,7 @@ and catches common mistakes. To use another Python environment, pass
 
 ## Call a model
 
-Set these three environment variables before running the Python example below:
+Set these three environment variables before starting a conversation:
 
 ```sh
 export OPENROUTER_API_KEY='your-key'
@@ -47,6 +47,24 @@ Replace `provider/model` with an OpenRouter model that supports tool calls.
 `SecretStr` type and is excluded when settings are printed or exported normally.
 If you keep settings in a `.env` file, load it through your shell or process
 launcher. Moseby reads the environment directly, and Git ignores `.env` files.
+
+Initialise the demo hotel and rooms, then start a conversation:
+
+```sh
+.venv/bin/python -m moseby init
+.venv/bin/python -m moseby chat
+```
+
+Try “Show me the available room tiers and prices.” The terminal prints the saved
+thread ID. Use `/exit` to leave, then reopen it with:
+
+```sh
+.venv/bin/python -m moseby chat --thread thread_...
+```
+
+For one message, use `chat --message "Show me the rooms"`. To choose a database,
+put `--database /path/to/demo.db` before `init` or `chat`. Initialisation preserves
+existing demo data.
 
 The [provider interface](moseby/inference/provider.py) has two methods:
 
@@ -98,9 +116,9 @@ model identified the right person.
 
 The calling code manages the HTTP client and decides when to retry. Requests
 allow 10 seconds to connect and 60 seconds for network reads or writes.
-The provider uses the application API key. The service and runtime still need
-to connect staff permission checks, thread ownership and a record of who requested
-each call.
+The provider uses the application API key. The conversation runtime checks current
+staff permissions and thread ownership before inference and tool execution. It
+saves each inference attempt and the history records included in its input.
 
 ## Define an agent
 
@@ -116,8 +134,8 @@ thread creator can use it, and their current permissions must still cover the
 thread's original permissions. The agent's own limits can narrow that access.
 Tools are offered only when all of their required permissions are covered.
 
-The service will supply identity and permissions from trusted staff data. It
-must check them again when executing tools. Thread storage already records the
+The service supplies identity and permissions from trusted staff data. The worker
+checks them again when executing tools. Thread storage already records the
 creator and original permissions. Threads and runs also have `agent_id` and
 `agent_version` columns for evaluation queries. The creation record keeps the same
 selection; `AgentThreadContext.from_creation_record()` restores it. Database
@@ -131,9 +149,10 @@ remain readable with empty attribution fields, but agent construction requires a
 explicit selection. The thread and run repositories provide
 `find_all_by_agent_id()`, with an optional version filter and forward pagination.
 
-`max_turns` counts generation requests in a run. `token_budget` covers input and
-output tokens from generation and classification. These are validated settings;
-the run loop still needs to enforce them as work proceeds.
+`max_turns` limits generation requests in a run. The loop adds up the provider’s
+reported input and output tokens and checks `token_budget` before the next call.
+One reply can exceed the remaining budget. If usage is missing, a final answer
+can finish the run, but the loop stops before making another request.
 
 ## Define a tool
 
@@ -152,7 +171,34 @@ The [room tool](moseby/tools/rooms.py) binds `search_rooms` to the application's
 database engine. Its [service](moseby/services/rooms.py) checks room read access,
 keeps queries within the caller's hotel and maps database rows into the room
 contract. The async handler runs synchronous database work in a worker thread.
-Worker dispatch and the remaining domain tools still need wiring.
+The local worker executes saved tool tasks one at a time. Room search is the
+concierge’s current tool; the other domain tools still need connecting.
+
+## Follow a turn
+
+The [turn loop](moseby/runtime/loop.py) is an explicit `while` loop:
+
+1. Save the user message and start one run on its thread.
+2. Build model input from saved conversation history and the current agent context.
+3. Save the inference attempt, then call the provider.
+4. Save the reply and any tool jobs together. Claim each task, execute it and
+   save its result back into the conversation.
+5. Call the model again with those results, until it answers or reaches a limit.
+
+[Context assembly](moseby/runtime/context.py) selects messages the model needs.
+Control records stay in history, and provider continuation data stays with its
+assistant reply. [Conversation storage](moseby/runtime/storage.py) keeps database
+transactions short: network calls and tool handlers run after they commit.
+
+Inference is awaited directly by the loop. While the HTTP request waits, the
+event loop can run other work, but inference has no queued job or worker claim.
+Moving inference onto the durable queue is a separate runtime step.
+
+The [tool worker](moseby/runtime/tool_worker.py) reads the saved task payload and
+uses the existing claim, completion and delivery operations. A stale claim cannot
+commit a result. Normal cancellation records outcomes for accepted calls so the
+next turn has a complete exchange. A process killed before cleanup can leave an
+unfinished run; automatic recovery and replay are still to be built.
 
 ## Use the HTTP gateway
 
@@ -291,16 +337,22 @@ Those tests check our request handling; model accuracy needs a separate live che
 
 ## What remains
 
-The next step is to connect the agent loop, services and worker execution so a
-staff message can lead to a model reply and tool calls. Guest lookup, room search
-and activity browsing have working HTTP handlers. Other API routes return HTTP
-501 until their service operations are connected.
+The terminal loop works with one local worker. Runtime HTTP handlers, background
+workers and recovery still need connecting. Guest lookup, room search and activity
+browsing have working HTTP handlers; other API routes return HTTP 501 until their
+service operations are connected.
+
+Inference should move onto durable jobs so execution can continue after a client
+disconnects. Streaming will need ordered, saved response chunks and a client
+cursor, allowing another session or device to resume reading. The current
+provider returns complete replies; it does not stream tokens.
 
 The database includes tables for schedules and notifications, but their execution
 still needs to be built. The demo booking flow will confirm stays without
 collecting payment. Its service and tool still need connecting, as do guest-note
-classification jobs and the user interface. Payment integration is separate work. Search and uniqueness constraints already have some indexes; further
-performance indexes will follow the queries that need them.
+classification jobs using Jev and the web interface. Payment integration is
+separate work. Search and uniqueness constraints already have some indexes;
+further performance indexes will follow the queries that need them.
 
 ## Find your way around
 

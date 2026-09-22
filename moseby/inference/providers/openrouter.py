@@ -38,7 +38,12 @@ class OpenRouterProvider:
                 InferenceErrorCode.INVALID_RESPONSE,
                 "OpenRouter returned an invalid assistant reply.",
             ) from None
-        return InferenceResult(output=output, request=body, response=response)
+        return InferenceResult(
+            output=output,
+            request=body,
+            response=response,
+            total_tokens=_total_tokens(response),
+        )
 
     async def classify(
         self, request: ClassificationRequest
@@ -54,7 +59,12 @@ class OpenRouterProvider:
                 InferenceErrorCode.INVALID_RESPONSE,
                 "OpenRouter returned invalid classification answers.",
             ) from None
-        return InferenceResult(output=output, request=body, response=response)
+        return InferenceResult(
+            output=output,
+            request=body,
+            response=response,
+            total_tokens=_total_tokens(response),
+        )
 
     async def _post(self, url: str, body: JsonObject) -> JsonObject:
         """Send one request and translate transport failures into safe, stable errors."""
@@ -96,3 +106,10 @@ class OpenRouterProvider:
                 "OpenRouter could not complete the request.",
             )
         return payload
+
+
+def _total_tokens(response: JsonObject) -> int | None:
+    """Read reported usage without treating an absent or malformed count as zero."""
+    usage = response.get("usage")
+    total = usage.get("total_tokens") if isinstance(usage, dict) else None
+    return total if type(total) is int and total >= 0 else None

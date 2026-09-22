@@ -443,3 +443,31 @@ published_events = Table(
     Column("format_version", Integer),
     Column("payload_json", JSON),
 )
+
+inference_requests = Table(
+    "inference_requests",
+    metadata,
+    Column("id", Text),
+    Column("thread_id", Text),
+    Column("run_id", Text),
+    Column("created_at", Integer),
+    Column("updated_at", Integer),
+    Column("purpose", Text),
+    Column("provider", Text),
+    Column("model", Text),
+    Column("format_version", Integer),
+    Column("request_json", JSON),
+    Column("status", Text),
+    Column("started_at", Integer),
+    Column("finished_at", Integer),
+    Column("response_json", JSON),
+    Column("error_json", JSON),
+)
+inference_request_records = Table(
+    "inference_request_records",
+    metadata,
+    Column("inference_request_id", Text),
+    Column("record_id", Text),
+    Column("thread_id", Text),
+    Column("sequence", Integer),
+)

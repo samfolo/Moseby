@@ -2,16 +2,16 @@
 
 from collections.abc import Sequence
 
-from sqlalchemy import Connection, Select, func, select, update
+from sqlalchemy import Connection, Select, func, insert, select, update
 
 from moseby.identifiers import AgentId, StaffMemberId, ThreadId
 
 from ..errors import RepositoryInvariantError, WriteConflict
-from ..models.threads import ProjectionUpdate, ThreadRow
+from ..models.threads import NewThread, ProjectionUpdate, ThreadRow
 from ..pagination import Page, PageRequest, read_page
 from ..tables import thread_records, threads
 from ._queries import unique_ids
-from ._writes import encode_canonical_json, require_write_transaction
+from ._writes import encode_canonical_json, require_found, require_write_transaction
 
 # Reads
 
@@ -164,3 +164,30 @@ def save_projection(
     if saved is None:
         raise RepositoryInvariantError("The thread projection could not be read back")
     return saved
+
+
+def create(connection: Connection, values: NewThread, *, now: int) -> ThreadRow:
+    """Create the identity; append its creation record in the same transaction."""
+    require_write_transaction(connection)
+    connection.execute(
+        insert(threads).values(
+            id=values.id,
+            creator_staff_member_id=values.creator_staff_member_id,
+            agent_id=values.agent.id,
+            agent_version=values.agent.version,
+            permissions_json=[p.root for p in values.permissions],
+            title=values.title,
+            created_at=now,
+            updated_at=now,
+            projection_sequence=0,
+            projection_format_version=1,
+            projection_json={},
+        )
+    )
+    return require_found(
+        find_by_id(
+            connection,
+            values.id,
+            creator_staff_member_id=values.creator_staff_member_id,
+        )
+    )

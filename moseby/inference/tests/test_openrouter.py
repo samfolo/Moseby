@@ -286,7 +286,7 @@ class OpenRouterTests(unittest.IsolatedAsyncioTestCase):
                 )
 
     async def test_classification_uses_decisions_and_retains_probabilities(self):
-        """JEV receives its own request shape and returns evidence for a later decision."""
+        """Jev receives its own request shape and returns evidence for a later decision."""
         self.response = httpx.Response(200, json=classification_response())
         result = await self.provider.classify(classification_request())
         self.assertEqual(

@@ -141,6 +141,29 @@ def search(
     )
 
 
+def find_first_by_thread_id(
+    connection: Connection,
+    thread_id: ThreadId,
+    *,
+    creator_staff_member_id: StaffMemberId,
+) -> ThreadRecordRow | None:
+    """Read the first saved record without loading the rest of the conversation.
+
+    Return None if the thread has no records or belongs to another creator.
+    """
+    row = (
+        connection.execute(
+            _select(creator_staff_member_id)
+            .where(thread_records.c.thread_id == thread_id)
+            .order_by(thread_records.c.sequence)
+            .limit(1)
+        )
+        .mappings()
+        .one_or_none()
+    )
+    return ThreadRecordRow.model_validate(dict(row)) if row is not None else None
+
+
 def find_last_by_thread_id(
     connection: Connection,
     thread_id: ThreadId,
