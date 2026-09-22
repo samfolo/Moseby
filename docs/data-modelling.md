@@ -8,12 +8,7 @@ For the consolidated list of questions to review, use
 [Remaining design decisions](design-review.md). This document supplies context;
 the checklist separates current decisions, provisional SQL, and deferred scope.
 
-The executable [SQLite draft](../schema/draft.sql) now captures the reviewed
-hotel-side structure: hotels, staff, confirmed bookings, parties, guests, party
-details, rooms, keys, activities, and versioned prices and reservations.
-Its [guide](../schema/README.md) labels provisional representations and the
-boundaries still to model. Drafts/holds, payments, external jobs and the agent
-runtime do not yet have final DDL. No performance indexes are being added now.
+The [database migrations](../moseby/db/migrations/versions) define the executable schema.
 
 The latest [runtime and final representation review](runtime-review.md) records
 accepted staff identity, permission direction, versioned party-reference shape,
@@ -608,9 +603,8 @@ remaining walkthrough. No arbitrary-endpoint integration registry is selected.
 ## Payments: minimum model still to design
 
 Do not build a payment provider or set up Stripe in this pass. We need enough
-information to distinguish the agreed charge from evidence of payment. The
-[schema guide](../schema/README.md#payment-evidence--proposed-minimum-no-provider-integration)
-records a proposed small payment-evidence record, with amount, currency, source,
+information to distinguish the agreed charge from evidence of payment. A
+proposed payment-evidence record would include amount, currency, source,
 reference and outcome. Its association before booking confirmation remains open.
 These are proposed fields, not selected DDL. A simulated payment is explicitly
 simulation; it does not mean money moved. Room-credit and full payment accounting
