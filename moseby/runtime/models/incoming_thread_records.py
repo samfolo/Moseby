@@ -6,7 +6,6 @@ from pydantic import AwareDatetime, Field, TypeAdapter, model_validator
 from moseby.identifiers import (
     IncomingThreadRecordId,
     RunId,
-    ScheduleOccurrenceId,
     StaffMemberId,
     ThreadId,
     ThreadRecordId,
@@ -18,7 +17,6 @@ from .messages import UserMessagePayload
 
 class IncomingThreadRecordKind(StrEnum):
     USER_MESSAGE = "INCOMING_THREAD_RECORD_KIND_USER_MESSAGE"
-    SCHEDULED_INPUT = "INCOMING_THREAD_RECORD_KIND_SCHEDULED_INPUT"
 
 
 class IncomingThreadRecordDeliveryMode(StrEnum):
@@ -26,13 +24,6 @@ class IncomingThreadRecordDeliveryMode(StrEnum):
 
     POLITE = "INCOMING_THREAD_RECORD_DELIVERY_MODE_POLITE"
     ASSERTIVE = "INCOMING_THREAD_RECORD_DELIVERY_MODE_ASSERTIVE"
-
-
-class ScheduledInputPayload(RuntimeModel):
-    occurrence_id: ScheduleOccurrenceId
-    text: str = Field(
-        min_length=1, description="Instruction accepted from the scheduled action."
-    )
 
 
 class IncomingThreadRecordBase(RuntimeModel):
@@ -103,17 +94,8 @@ class IncomingUserMessageRecord(IncomingThreadRecordBase):
         return self
 
 
-class IncomingScheduledInputRecord(IncomingThreadRecordBase):
-    kind: Literal[IncomingThreadRecordKind.SCHEDULED_INPUT]
-    delivery_mode: Literal[IncomingThreadRecordDeliveryMode.POLITE]
-    target_run_id: None = None
-    cancelled_at: None = None
-    cancelled_by_staff_member_id: None = None
-    payload: ScheduledInputPayload
-
-
 type IncomingThreadRecord = Annotated[
-    IncomingUserMessageRecord | IncomingScheduledInputRecord,
+    IncomingUserMessageRecord,
     Field(discriminator="kind"),
 ]
 

@@ -2,7 +2,7 @@ from pydantic import AwareDatetime
 
 from moseby.identifiers import BookingId, PartyId
 
-from .common import Contract, IdFilter, Request, SearchRequestPayload
+from .common import Contract
 
 
 class Party(Contract):
@@ -11,12 +11,3 @@ class Party(Contract):
     id: PartyId
     booking_id: BookingId
     created_at: AwareDatetime
-
-
-class SearchPartiesRequestPayload(SearchRequestPayload):
-    ids: IdFilter[PartyId] | None = None
-    booking_ids: IdFilter[BookingId] | None = None
-
-
-class SearchPartiesRequest(Request[SearchPartiesRequestPayload]):
-    pass

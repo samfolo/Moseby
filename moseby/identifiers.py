@@ -34,13 +34,8 @@ type IncomingThreadRecordId = Annotated[
 ]
 type RunId = Annotated[str, Field(pattern=rf"^run_{ULID_PATTERN}$")]
 type JobId = Annotated[str, Field(pattern=rf"^job_{ULID_PATTERN}$")]
-type ScheduleId = Annotated[str, Field(pattern=rf"^schedule_{ULID_PATTERN}$")]
-type NotificationId = Annotated[str, Field(pattern=rf"^notification_{ULID_PATTERN}$")]
 type InferenceRequestId = Annotated[
     str, Field(pattern=rf"^inference_request_{ULID_PATTERN}$")
-]
-type ScheduleOccurrenceId = Annotated[
-    str, Field(pattern=rf"^occurrence_{ULID_PATTERN}$")
 ]
 
 type TaskId = Annotated[str, Field(pattern=rf"^task_{ULID_PATTERN}$")]

@@ -29,7 +29,6 @@ Room, bed and activity configuration belong to a separate back-office profile.
 ## Make the demo easier to use and review
 
 - **Interface:** refine CLI presentation beyond tool progress and saved outcomes. A small web client, calendar or job board can follow; generate TypeScript types from OpenAPI when needed.
-- **Gateway:** connect the remaining advertised routes to shared services, including runtime routes. A declared contract is not an implemented endpoint.
 - **Behaviour checks:** turn the room-booking and activity transcripts into useful evaluation cases: search before asking, clarify ambiguous names, avoid repeated confirmation, and report actual outcomes.
 - **Tool output:** compare concise tables or text with JSON for model-facing results. Measure token use and task accuracy while preserving IDs, versions, amounts and pagination; keep the HTTP contract structured.
 - **Tool errors:** separate the problem, affected resources and suggested next action; review errors across the full tool set.

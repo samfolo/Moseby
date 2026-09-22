@@ -202,13 +202,11 @@ class RuntimeMigrationTests(unittest.TestCase):
             tables = [
                 name for name in inspector.get_table_names() if name in ordinary_tables
             ]
-            self.assertEqual(len(tables), 35)
+            self.assertEqual(len(tables), 31)
             for name in tables:
                 if name != "alembic_version":
                     self.assertTrue(inspector.get_table_options(name)["sqlite_strict"])
-                    # SQLite renders AUTOINCREMENT as an unnamed inline key.
-                    if name != "published_events":
-                        self.assertTrue(inspector.get_pk_constraint(name)["name"])
+                    self.assertTrue(inspector.get_pk_constraint(name)["name"])
             self.assertEqual(
                 connection.exec_driver_sql("PRAGMA foreign_key_check").all(), []
             )
@@ -519,20 +517,6 @@ class RuntimeMigrationTests(unittest.TestCase):
                 )
             target = self.metadata.tables["incoming_thread_records"]
             self.invalid(connection, lambda: connection.execute(target.delete()))
-            self.incoming(
-                connection,
-                2,
-                kind="INCOMING_THREAD_RECORD_KIND_SCHEDULED_INPUT",
-            )
-            self.invalid(
-                connection,
-                lambda: self.update(
-                    connection,
-                    "incoming_thread_records",
-                    identifier("incoming_thread_record", 2),
-                    **cancellation,
-                ),
-            )
 
     def test_cancellation_and_append_cannot_both_win(self):
         """Delivery and cancellation cannot both succeed or leave partial history."""
@@ -650,8 +634,6 @@ class RuntimeMigrationTests(unittest.TestCase):
             "tasks",
             "task_claims",
             "completion_outbox",
-            "schedules",
-            "notification_requests",
         )
         for table in mutable:
             for name in ("created_at", "updated_at"):
@@ -771,131 +753,4 @@ class RuntimeMigrationTests(unittest.TestCase):
                     record_id=None,
                     appended_at=None,
                 ),
-            )
-
-    def test_schedule_edits_do_not_rewrite_accepted_work(self):
-        """Schedule edits preserve occurrences and cannot repeat a saved due time."""
-        with transaction(self.engine, write=True) as connection:
-            self.job(connection)
-            self.insert(
-                connection,
-                "schedules",
-                id=identifier("schedule"),
-                created_at=0,
-                actor_staff_member_id=identifier("staff_member"),
-                revision=1,
-                enabled=1,
-                due_at=10,
-                handler="demo",
-                format_version=1,
-                input_json="{}",
-            )
-
-            def occurrence(number, revision):
-                self.insert(
-                    connection,
-                    "schedule_occurrences",
-                    id=identifier("occurrence", number),
-                    created_at=10,
-                    schedule_id=identifier("schedule"),
-                    schedule_revision=revision,
-                    due_at=10,
-                    format_version=1,
-                    snapshot_json="{}",
-                    job_id=identifier("job", number),
-                )
-
-            occurrence(1, 1)
-            self.update(
-                connection,
-                "schedules",
-                identifier("schedule"),
-                revision=2,
-                input_json='{"changed":true}',
-            )
-            self.job(connection, 2)
-            self.invalid(connection, lambda: occurrence(2, 2))
-            self.invalid(
-                connection,
-                lambda: self.update(
-                    connection,
-                    "schedule_occurrences",
-                    identifier("occurrence"),
-                    schedule_revision=2,
-                ),
-            )
-            self.assertEqual(
-                connection.exec_driver_sql(
-                    "SELECT schedule_revision FROM schedule_occurrences"
-                ).scalar_one(),
-                1,
-            )
-
-    def test_publication_is_atomic_and_replay_keeps_event_identity(self):
-        """Publication rolls back together; retrying cannot duplicate a saved event."""
-
-        def notification(connection):
-            self.insert(
-                connection,
-                "notification_requests",
-                id=identifier("notification"),
-                created_at=0,
-                actor_staff_member_id=identifier("staff_member"),
-                request_id="notify-1",
-                recipient_staff_member_id=identifier("staff_member"),
-                format_version=1,
-                payload_json="{}",
-            )
-
-        def publish(connection):
-            self.insert(
-                connection,
-                "published_events",
-                notification_id=identifier("notification"),
-                created_at=1,
-                format_version=1,
-                payload_json="{}",
-            )
-            self.update(
-                connection,
-                "notification_requests",
-                identifier("notification"),
-                published_at=1,
-            )
-
-        with transaction(self.engine, write=True) as connection:
-            notification(connection)
-            self.invalid(
-                connection,
-                lambda: self.update(
-                    connection,
-                    "notification_requests",
-                    identifier("notification"),
-                    published_at=1,
-                ),
-            )
-        with self.assertRaisesRegex(RuntimeError, "crash"):
-            with transaction(self.engine, write=True) as connection:
-                publish(connection)
-                raise RuntimeError("crash")
-        with transaction(self.engine, write=True) as connection:
-            self.assertEqual(
-                connection.exec_driver_sql(
-                    "SELECT count(*) FROM published_events"
-                ).scalar_one(),
-                0,
-            )
-            self.assertIsNone(
-                connection.exec_driver_sql(
-                    "SELECT published_at FROM notification_requests"
-                ).scalar_one()
-            )
-            publish(connection)
-            self.invalid(connection, lambda: publish(connection))
-            self.invalid(connection, lambda: notification(connection))
-            self.assertEqual(
-                connection.exec_driver_sql(
-                    "SELECT count(*) FROM published_events"
-                ).scalar_one(),
-                1,
             )

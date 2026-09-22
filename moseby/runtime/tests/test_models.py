@@ -1,19 +1,10 @@
-"""Validate recorded messages and the boundary between internal and public data."""
+"""Validate recorded messages and their delivery receipts."""
 
 import json
 import unittest
 
-from pydantic import TypeAdapter, ValidationError
+from pydantic import ValidationError
 
-from moseby.contracts.runs import Run
-from moseby.contracts.threads import (
-    CancelIncomingThreadRecordRequest,
-    ConversationRecord,
-    CreateIncomingThreadRecordRequest,
-    CreateThreadRequest,
-    IncomingThreadRecordReceipt,
-    Thread,
-)
 from moseby.runtime.models.incoming_thread_records import incoming_thread_record_adapter
 from moseby.runtime.models.messages import AssistantMessagePayload
 from moseby.runtime.models.thread_records import (
@@ -278,28 +269,6 @@ class RuntimeModelTests(unittest.TestCase):
             with self.subTest(changes=changes), self.assertRaises(ValidationError):
                 incoming_thread_record_adapter.validate_python(incoming(**changes))
 
-    def test_scheduled_input_uses_occurrence_identity_and_polite_delivery(self):
-        """Scheduled input identifies its occurrence and uses polite delivery."""
-        scheduled = incoming(
-            kind="INCOMING_THREAD_RECORD_KIND_SCHEDULED_INPUT",
-            request_id=None,
-            payload={
-                "occurrence_id": identifier("occurrence"),
-                "text": "Prepare today's briefing",
-            },
-        )
-        self.assertIsNone(
-            incoming_thread_record_adapter.validate_python(scheduled).request_id
-        )
-        with self.assertRaises(ValidationError):
-            incoming_thread_record_adapter.validate_python(
-                scheduled
-                | {
-                    "delivery_mode": "INCOMING_THREAD_RECORD_DELIVERY_MODE_ASSERTIVE",
-                    "target_run_id": identifier("run"),
-                }
-            )
-
     def test_pending_user_input_can_be_cancelled(self):
         """Polite and assertive input can be withdrawn with a staff receipt."""
         cancellation = dict(
@@ -317,28 +286,8 @@ class RuntimeModelTests(unittest.TestCase):
             cancelled = incoming_thread_record_adapter.validate_python(
                 incoming(**delivery, **cancellation)
             )
-            receipt = IncomingThreadRecordReceipt.model_validate(
-                {
-                    name: getattr(cancelled, name)
-                    for name in IncomingThreadRecordReceipt.model_fields
-                }
-            )
-            self.assertIsNotNone(receipt.cancelled_at)
-            self.assertIsNone(receipt.record_id)
-
-        request = CancelIncomingThreadRecordRequest.model_validate(
-            {"request_id": "withdraw-1", "payload": {}}
-        )
-        self.assertEqual(request.payload.model_dump(), {})
-        with self.assertRaises(ValidationError):
-            CancelIncomingThreadRecordRequest.model_validate(
-                {
-                    "request_id": "withdraw-1",
-                    "payload": {
-                        "cancelled_by_staff_member_id": identifier("staff_member")
-                    },
-                }
-            )
+            self.assertIsNotNone(cancelled.cancelled_at)
+            self.assertIsNone(cancelled.record_id)
 
     def test_cancellation_requires_an_actor_and_unappended_user_input(self):
         """Cancelling input requires a pending user message, staff ID and valid time."""
@@ -353,73 +302,9 @@ class RuntimeModelTests(unittest.TestCase):
             {"updated_at": NOW},
             {"cancelled_at": "2026-09-20T08:59:00Z"},
             {"record_id": identifier("thread_record"), "appended_at": LATER},
-            {
-                "kind": "INCOMING_THREAD_RECORD_KIND_SCHEDULED_INPUT",
-                "payload": {"occurrence_id": identifier("occurrence"), "text": "Check"},
-            },
         ):
             with self.subTest(changes=changes), self.assertRaises(ValidationError):
                 incoming_thread_record_adapter.validate_python(cancelled | changes)
-
-    def test_public_requests_require_idempotency_but_responses_omit_it(self):
-        """Public requests require request IDs; responses omit internal details."""
-        request = CreateIncomingThreadRecordRequest.model_validate(
-            {
-                "request_id": "request-1",
-                "payload": {"thread_id": identifier("thread"), "text": "Hello"},
-            }
-        )
-        self.assertEqual(request.request_id, "request-1")
-        with self.assertRaises(ValidationError):
-            CreateIncomingThreadRecordRequest.model_validate(
-                {"payload": {"thread_id": identifier("thread"), "text": "Hello"}}
-            )
-        with self.assertRaises(ValidationError):
-            CreateThreadRequest.model_validate(
-                {
-                    "request_id": "request-1",
-                    "payload": {"permissions": ["moseby:write"]},
-                }
-            )
-        for model in (Thread, Run, IncomingThreadRecordReceipt):
-            self.assertNotIn("request_id", model.model_json_schema()["properties"])
-        with self.assertRaises(ValidationError):
-            TypeAdapter(ConversationRecord).validate_python(
-                record("CONTROL_EVENT", {"name": "run.waiting", "data": {}})
-            )
-
-    def test_run_state_matches_completion_and_wake_fields(self):
-        """Run status must agree with wake, completion and cancellation details."""
-        run = dict(
-            id=identifier("run"),
-            thread_id=identifier("thread"),
-            status="RUN_STATUS_WAITING",
-            created_at=NOW,
-            updated_at=NOW,
-            wake_at=LATER,
-            cancel_requested_at=None,
-            cancel_requested_by_staff_member_id=None,
-            recovery_attempts=0,
-            finished_at=None,
-        )
-        Run.model_validate(run)
-        for changes in (
-            {"status": "RUN_STATUS_RUNNING"},
-            {"status": "RUN_STATUS_CANCELLED"},
-            {"cancel_requested_at": NOW},
-            {"recovery_attempts": -1},
-        ):
-            with self.subTest(changes=changes), self.assertRaises(ValidationError):
-                Run.model_validate(run | changes)
-        Run.model_validate(
-            run
-            | {
-                "status": "RUN_STATUS_CANCELLED",
-                "wake_at": None,
-                "finished_at": LATER,
-                "updated_at": LATER,
-            }
-        )
 
     def test_schemas_expose_tagged_payloads_and_reject_extra_fields(self):
         """Record schemas select payloads by kind and reject unrecognised fields."""

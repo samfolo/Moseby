@@ -1,4 +1,4 @@
-"""Thread history, queued work, schedules and published notifications.
+"""Thread history, inference requests and queued tool work.
 
 Times use UTC microseconds. JSON payloads use versioned application formats.
 Migration-local helpers keep schema creation repeatable.
@@ -94,13 +94,11 @@ def _append_only(table: str) -> None:
 
 
 def upgrade() -> None:
-    """Create history first, then work, schedules and notification delivery."""
+    """Create thread history, inference records and the shared work queue."""
     _create_threads_and_runs()
     _create_thread_records()
     _create_incoming_and_inference()
     _create_requests_and_work()
-    _create_schedules()
-    _create_notifications()
     _create_rules()
 
 
@@ -301,7 +299,7 @@ def _create_incoming_and_inference() -> None:
         ),
         sa.CheckConstraint("format_version = 1", name="ck_incoming_version"),
         sa.CheckConstraint(
-            "kind IN ('INCOMING_THREAD_RECORD_KIND_USER_MESSAGE', 'INCOMING_THREAD_RECORD_KIND_SCHEDULED_INPUT')",
+            "kind = 'INCOMING_THREAD_RECORD_KIND_USER_MESSAGE'",
             name="ck_incoming_kind",
         ),
         sa.CheckConstraint(
@@ -311,10 +309,6 @@ def _create_incoming_and_inference() -> None:
         sa.CheckConstraint(
             "(delivery_mode = 'INCOMING_THREAD_RECORD_DELIVERY_MODE_ASSERTIVE') = (target_run_id IS NOT NULL)",
             name="ck_incoming_target_run",
-        ),
-        sa.CheckConstraint(
-            "kind = 'INCOMING_THREAD_RECORD_KIND_USER_MESSAGE' OR delivery_mode = 'INCOMING_THREAD_RECORD_DELIVERY_MODE_POLITE'",
-            name="ck_incoming_scheduled_delivery",
         ),
         sa.CheckConstraint(
             "(record_id IS NULL) = (appended_at IS NULL)", name="ck_incoming_append"
@@ -483,7 +477,7 @@ def _create_requests_and_work() -> None:
         sa.Column("format_version", sa.Integer(), nullable=False),
         *_json("input_json"),
         sa.Column("status", sa.Text(), nullable=False),
-        # Whole-operation outcome, retained for callers and scheduled occurrences.
+        # Whole-operation outcome retained for callers.
         *_json("result_json", nullable=True),
         *_json("error_json", nullable=True),
         sa.Column("finished_at", sa.Integer()),
@@ -650,157 +644,11 @@ def _create_requests_and_work() -> None:
     )
 
 
-def _create_schedules() -> None:
-    """A schedule defines future work; an occurrence records one accepted firing."""
-    op.create_table(
-        "schedules",
-        *_identity("schedule"),
-        *_updated_at(),
-        sa.Column(
-            "actor_staff_member_id",
-            sa.Text(),
-            sa.ForeignKey("staff_members.id", name="fk_schedule_actor"),
-            nullable=False,
-        ),
-        # This row is updated in place; each edit increments its revision.
-        sa.Column("revision", sa.Integer(), nullable=False),
-        # SQLite stores booleans as 0/1; enabled controls acceptance of new work.
-        sa.Column("enabled", sa.Integer(), nullable=False),
-        # A one-off UTC time, mutually exclusive with the recurring cron fields.
-        sa.Column("due_at", sa.Integer()),
-        # Recurrence rule used by the scheduler to calculate due times in UTC.
-        sa.Column("cron_expression", sa.Text()),
-        # Names the parser's rules, including field count and weekday interpretation.
-        sa.Column("cron_dialect", sa.Text()),
-        sa.Column(
-            "thread_id",
-            sa.Text(),
-            sa.ForeignKey("threads.id", name="fk_schedule_thread"),
-        ),
-        # The scheduler creates work for this handler in the shared job/task queue.
-        sa.Column("handler", sa.Text(), nullable=False),
-        sa.Column("format_version", sa.Integer(), nullable=False),
-        *_json("input_json"),
-        sa.CheckConstraint(
-            "revision >= 1 AND enabled IN (0, 1)", name="ck_schedule_revision_enabled"
-        ),
-        sa.CheckConstraint(
-            "(due_at IS NOT NULL AND cron_expression IS NULL AND cron_dialect IS NULL) OR (due_at IS NULL AND cron_expression IS NOT NULL AND length(cron_expression) > 0 AND cron_dialect IS NOT NULL AND length(cron_dialect) > 0)",
-            name="ck_schedule_timing",
-        ),
-        sa.CheckConstraint(
-            "format_version = 1 AND length(handler) > 0", name="ck_schedule_payload"
-        ),
-        sqlite_strict=True,
-    )
-    op.create_table(
-        "schedule_occurrences",
-        *_identity("occurrence"),
-        sa.Column(
-            "schedule_id",
-            sa.Text(),
-            sa.ForeignKey("schedules.id", name="fk_occurrence_schedule"),
-            nullable=False,
-        ),
-        # Revision used at acceptance; it stays unchanged when the schedule is edited.
-        sa.Column("schedule_revision", sa.Integer(), nullable=False),
-        # Intended firing time; created_at is when we actually accepted the work.
-        sa.Column("due_at", sa.Integer(), nullable=False),
-        sa.Column("format_version", sa.Integer(), nullable=False),
-        # Accepted rule and handler input, preserved with this occurrence.
-        *_json("snapshot_json"),
-        # Follow this job for status, result, errors and its individual tasks.
-        sa.Column(
-            "job_id",
-            sa.Text(),
-            sa.ForeignKey("jobs.id", name="fk_occurrence_job"),
-            nullable=False,
-        ),
-        # Accept each scheduled due time once across schedule revisions.
-        sa.UniqueConstraint("schedule_id", "due_at", name="uq_occurrence_due"),
-        sa.UniqueConstraint("job_id", name="uq_occurrence_job"),
-        sa.CheckConstraint(
-            "schedule_revision >= 1 AND format_version = 1",
-            name="ck_occurrence_versions",
-        ),
-        sa.CheckConstraint("created_at >= due_at", name="ck_occurrence_time"),
-        sqlite_strict=True,
-    )
-
-
-def _create_notifications() -> None:
-    """Save notification intent and durable publications for consumers to process."""
-    op.create_table(
-        "notification_requests",
-        *_identity("notification"),
-        *_updated_at(),
-        sa.Column(
-            "actor_staff_member_id",
-            sa.Text(),
-            sa.ForeignKey("staff_members.id", name="fk_notification_actor"),
-            nullable=False,
-        ),
-        # Stable identity for this recipient effect, shared by delivery retries.
-        sa.Column("request_id", sa.Text(), nullable=False),
-        sa.Column(
-            "recipient_staff_member_id",
-            sa.Text(),
-            sa.ForeignKey("staff_members.id", name="fk_notification_staff"),
-        ),
-        sa.Column(
-            "recipient_guest_id",
-            sa.Text(),
-            sa.ForeignKey("guests.id", name="fk_notification_guest"),
-        ),
-        sa.Column("format_version", sa.Integer(), nullable=False),
-        *_json("payload_json"),
-        # Publication into the durable event stream, not recipient acknowledgement.
-        sa.Column("published_at", sa.Integer()),
-        sa.UniqueConstraint(
-            "actor_staff_member_id", "request_id", name="uq_notification_request"
-        ),
-        sa.CheckConstraint(
-            "(recipient_staff_member_id IS NOT NULL) != (recipient_guest_id IS NOT NULL)",
-            name="ck_notification_recipient",
-        ),
-        sa.CheckConstraint(
-            "length(request_id) > 0 AND format_version = 1",
-            name="ck_notification_request_version",
-        ),
-        sa.CheckConstraint(
-            "published_at IS NULL OR published_at >= created_at",
-            name="ck_notification_published",
-        ),
-        sqlite_strict=True,
-    )
-    op.create_table(
-        "published_events",
-        # Use a persistent increasing sequence as the publication cursor.
-        sa.Column("sequence", sa.Integer(), nullable=False),
-        sa.PrimaryKeyConstraint("sequence", name="pk_published_events"),
-        sa.Column(
-            "notification_id",
-            sa.Text(),
-            sa.ForeignKey("notification_requests.id", name="fk_event_notification"),
-            nullable=False,
-        ),
-        sa.Column("created_at", sa.Integer(), nullable=False),
-        sa.Column("format_version", sa.Integer(), nullable=False),
-        *_json("payload_json"),
-        sa.UniqueConstraint("notification_id", name="uq_event_notification"),
-        sa.CheckConstraint("format_version = 1", name="ck_event_version"),
-        sqlite_strict=True,
-        sqlite_autoincrement=True,
-    )
-
-
 def _create_rules() -> None:
     """Protect saved history and the links used to resume work safely."""
     for table in (
         "thread_records",
         "inference_request_records",
-        "schedule_occurrences",
-        "published_events",
     ):
         _append_only(table)
 
@@ -865,17 +713,6 @@ def _create_rules() -> None:
             "created_at",
             "job_id",
             "thread_id",
-            "format_version",
-            "payload_json",
-        ),
-        "schedules": ("id", "created_at", "actor_staff_member_id"),
-        "notification_requests": (
-            "id",
-            "created_at",
-            "actor_staff_member_id",
-            "request_id",
-            "recipient_staff_member_id",
-            "recipient_guest_id",
             "format_version",
             "payload_json",
         ),
@@ -1007,7 +844,6 @@ def _create_rules() -> None:
         ("incoming_thread_records", "record_id", ("appended_at",)),
         ("completion_outbox", "record_id", ("appended_at",)),
         ("request_deduplication", "response_json", ()),
-        ("notification_requests", "published_at", ()),
     ):
         changed = " OR ".join(
             f"NEW.{field} IS NOT OLD.{field}" for field in (marker, *companions)
@@ -1103,56 +939,6 @@ def _create_rules() -> None:
             END;
             """,
         )
-        _trigger(
-            f"notification_check_event_{event.lower()}",
-            event,
-            "notification_requests",
-            """
-            -- A publication receipt points to the event saved at that time.
-            SELECT CASE
-                WHEN NEW.published_at IS NOT NULL AND NOT EXISTS (
-                    SELECT 1
-                    FROM published_events
-                    WHERE notification_id = NEW.id
-                      AND created_at = NEW.published_at
-                )
-                THEN RAISE(ABORT, 'Save the published event before marking publication')
-            END;
-            """,
-        )
-
-    # Schedules: track edits and accept occurrences against the current rule.
-    _trigger(
-        "schedule_next_revision",
-        "UPDATE",
-        "schedules",
-        """
-        -- Each edit advances the schedule by one revision.
-        SELECT CASE
-            WHEN NEW.revision != OLD.revision + 1
-            THEN RAISE(ABORT, 'A schedule edit needs the next revision')
-        END;
-        """,
-    )
-    _trigger(
-        "occurrence_current_schedule",
-        "INSERT",
-        "schedule_occurrences",
-        """
-        -- Accept work from the enabled revision checked by the scheduler.
-        SELECT CASE
-            WHEN NOT EXISTS (
-                SELECT 1
-                FROM schedules
-                WHERE id = NEW.schedule_id
-                  AND enabled = 1
-                  AND revision = NEW.schedule_revision
-                  AND (due_at IS NULL OR due_at = NEW.due_at)
-            )
-            THEN RAISE(ABORT, 'Accept work from the current enabled schedule')
-        END;
-        """,
-    )
 
 
 def downgrade() -> None:
@@ -1162,21 +948,14 @@ def downgrade() -> None:
         for name in (
             "incoming_check_record",
             "completion_check_job",
-            "notification_check_event",
         ):
             op.execute(f"DROP TRIGGER {name}_{event}")
     for table in (
-        "published_events",
-        "schedule_occurrences",
         "inference_request_records",
         "thread_records",
     ):
         op.execute(f"DROP TRIGGER {table}_no_delete")
     for table in (
-        "published_events",
-        "notification_requests",
-        "schedule_occurrences",
-        "schedules",
         "completion_outbox",
         "task_claims",
         "tasks",

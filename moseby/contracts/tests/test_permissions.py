@@ -112,7 +112,10 @@ class PermissionTests(unittest.TestCase):
         self.assertTrue(
             all(PermissionResolver.matches(grant, required) for grant in grants)
         )
-        self.assertEqual(access(required)["x-permissions"]["anyOf"], expected)
+        self.assertEqual(
+            access("moseby.guests:read")["x-permissions"]["anyOf"],
+            ["moseby.guests:read", "moseby:read"],
+        )
         self.assertEqual(
             access("moseby:read")["x-permissions"]["anyOf"], ["moseby:read"]
         )

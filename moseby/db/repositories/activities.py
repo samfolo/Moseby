@@ -156,8 +156,7 @@ def update_details(
 ) -> ActivityRow:
     """Replace activity settings without excluding existing attendees or exceeding capacity.
 
-    Moving a booked event requires notification delivery, so reject changes to
-    its times or venue while it has effective reservations.
+    Keep the promised time and venue while guests have effective reservations.
     """
     require_write_transaction(connection)
     saved = require_found(find_by_id(connection, id))
@@ -173,7 +172,7 @@ def update_details(
         or values.date_range.max_date != saved.max_date
     ):
         raise WriteConflict(
-            "Changing a booked event's time or venue requires the notification workflow"
+            "An activity with reserved places must keep its time and venue"
         )
     # The youngest effective attendee determines whether the new age limit is valid.
     current = current_reservations().subquery()

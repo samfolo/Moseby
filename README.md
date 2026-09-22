@@ -56,10 +56,10 @@ Run `.venv/bin/python -m moseby --help` for command options.
 ## Things to know
 
 - `.env` and the default `moseby.db` are ignored by Git. `.env` is loaded by your shell, not automatically by the app. Reload it and restart chat after changing models.
-- `init` adds missing demo data and preserves existing rows. To use another database, put `--database PATH` before `init` or `chat`.
+- Start with a fresh database when switching from the extensions snapshot; the prototype schema is smaller. `init` adds missing demo data and preserves existing rows. To use another database, put `--database PATH` before `init` or `chat`.
 - Each user message starts a new run. Its token budget counts uncached input and all output; cached reads are tracked separately.
 - Threads retain the permissions they were created with. Start a new chat after adding tools that need new permissions.
-- This is a local, single-staff demo. Some HTTP routes are contract stubs. Background scheduling and automatic recovery after a process crash are unfinished.
+- This is a local, single-staff demo. The CLI runs the agent; HTTP routes expose domain operations. Interrupted runs require manual intervention.
 - Dates use UTC unless an explicit timezone is supplied. Local tests use simulated model replies and need no API key.
 
 ## Project layout
@@ -68,3 +68,4 @@ Run `.venv/bin/python -m moseby --help` for command options.
 - [HTTP gateway](moseby/gateway), [contracts](moseby/contracts) and [services](moseby/services).
 - [Database migrations, models and repositories](moseby/db).
 - [Design notes](docs) record the project's evolution; the code defines current behaviour.
+- [Extensions snapshot](https://github.com/samfolo/Moseby/tree/extensions) preserves the broader scheduling and notification design.

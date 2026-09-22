@@ -1,4 +1,4 @@
-"""Contract metadata only; the service must enforce permissions when implemented."""
+"""HTTP capability metadata; services enforce the same permissions."""
 
 from pydantic import BaseModel
 
@@ -10,25 +10,13 @@ PERMISSIONS: dict[Permission, str] = {
         "moseby:read": "Read across all Moseby resources within the caller's data scope.",
         "moseby:write": "Write across all Moseby resources within the caller's data scope.",
         "moseby:execute": "Execute registered actions within the caller's data scope.",
-        "moseby.hotels:read": "Read hotel information.",
-        "moseby.staff-members:read": "Read staff information.",
         "moseby.rooms:read": "Read rooms, beds, prices and availability.",
-        "moseby.rooms.configuration:write": "Configure rooms; excluded from the concierge agent profile.",
-        "moseby.venues:read": "Read shared venues.",
         "moseby.bookings:read": "Read bookings, room reservations and keys.",
         "moseby.bookings:write": "Create and manage stays; issue and deactivate room keys.",
         "moseby.guests:read": "Read guests, parties and party details.",
         "moseby.guests:write": "Update guests and add party details.",
         "moseby.activities:read": "Read activities and guest reservations.",
         "moseby.activities:write": "Reserve and cancel places in existing activities.",
-        "moseby.threads:read": "Read owned threads, input, conversation records and runs.",
-        "moseby.threads:write": "Create threads, submit or steer input, and request cancellation.",
-        "moseby.jobs:read": "Read permitted jobs and their outcomes.",
-        "moseby.jobs:write": "Submit publicly registered operations with their required permissions.",
-        "moseby.schedules:read": "Read owned schedules and their accepted occurrences.",
-        "moseby.schedules:write": "Create and edit permitted scheduled actions.",
-        "moseby.notifications:read": "Read permitted notifications and published events.",
-        "moseby.notifications:write": "Request notifications for permitted recipients.",
     }.items()
 }
 

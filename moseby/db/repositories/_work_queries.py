@@ -40,7 +40,7 @@ def claimable_job_ids(actor_staff_member_id: StaffMemberId, now: int) -> Select:
     """Pause agent-driving work during a wait, while letting its tool jobs proceed.
 
     A stop request blocks new attempts of either kind. Jobs without a run are
-    independent work, including schedules accepted outside an agent turn.
+    independent work.
     """
     runnable_runs = (
         select(runs.c.id)

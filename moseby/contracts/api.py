@@ -12,11 +12,6 @@ from moseby.gateway.guest_support import router as support_router
 from moseby.gateway.stays import router as stays_router
 from moseby.identifiers import HotelId, StaffMemberId
 
-from .domain_api import router as domain_router
-from .runtime_api import router as runtime_router
-
-UNIMPLEMENTED = {501: {"description": "Operation is not implemented."}}
-
 
 def create_app(
     *,
@@ -39,8 +34,6 @@ def create_app(
     application.state.gateway_binding = (
         GatewayBinding(engine, staff_member_id, hotel_id) if all(supplied) else None
     )
-    application.include_router(domain_router, responses=UNIMPLEMENTED)
-    application.include_router(runtime_router, responses=UNIMPLEMENTED)
     application.include_router(reads_router)
     application.include_router(reservations_router)
     application.include_router(stays_router)

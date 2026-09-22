@@ -151,17 +151,6 @@ class ThreadRepositoryTests(StayDatabaseTestCase):
                     delivery_mode="INCOMING_THREAD_RECORD_DELIVERY_MODE_ASSERTIVE",
                     target_run_id=old_run,
                 )
-            elif sequence == 5:
-                changes = dict(
-                    kind="INCOMING_THREAD_RECORD_KIND_SCHEDULED_INPUT",
-                    request_id=None,
-                    payload_json=json.dumps(
-                        {
-                            "occurrence_id": identifier("occurrence", thread),
-                            "text": "Prepare briefing",
-                        }
-                    ),
-                )
             self.add_input(
                 connection, thread, sequence, actor_staff_member_id=actor, **changes
             )
@@ -450,7 +439,7 @@ class ThreadRepositoryTests(StayDatabaseTestCase):
                 )
             )
 
-    def test_pending_input_includes_steers_for_ended_runs_and_scheduled_input(self):
+    def test_pending_input_includes_steers_for_ended_runs(self):
         """When a steer's run ends, the undelivered message stays in the pending list."""
         with transaction(self.engine) as connection:
             page = incoming_thread_records.search(
@@ -464,9 +453,6 @@ class ThreadRepositoryTests(StayDatabaseTestCase):
                 steer.delivery_mode, IncomingThreadRecordDeliveryMode.ASSERTIVE
             )
             self.assertEqual(steer.target_run_id, identifier("run", 11))
-            self.assertEqual(
-                page.items[2].payload["occurrence_id"], identifier("occurrence")
-            )
             all_input = incoming_thread_records.find_all_by_thread_id(
                 connection, identifier("thread"), **self.scope
             )

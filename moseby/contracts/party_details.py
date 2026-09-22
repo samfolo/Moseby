@@ -60,7 +60,3 @@ class CreatePartyDetailRequestPayload(Contract):
         min_length=1,
         description="Record the evidence; the service resolves guest references.",
     )
-
-
-class CreatePartyDetailRequest(Request[CreatePartyDetailRequestPayload]):
-    pass
