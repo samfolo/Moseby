@@ -2,7 +2,7 @@
 
 This is the review checklist for the current design. It consolidates the
 [domain notes](data-modelling.md), [runtime notes](agent-runtime.md), and
-[SQL draft and guide](../schema/README.md), reviewed against commit `365a435`.
+[database migrations](../moseby/db/migrations/versions).
 The subsequent A/B review is captured in [Checkout lifecycle](checkout-lifecycle.md).
 The final [runtime review](runtime-review.md) consolidates the subsequent
 permissions, execution, recovery and scheduling walkthrough.
