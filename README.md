@@ -69,7 +69,7 @@ agent is allowed to do, start a new conversation to use those permissions.
 | --- | --- |
 | Format | `make format` |
 | Lint and check formatting | `make check` |
-| Run tests | `make test-db test-models test-contracts test-inference test-agents test-tools` |
+| Run tests | `make test` |
 | Apply migrations | `make migrate` |
 | Delete the default database (stop chat first) | `make clean-db` |
 | Regenerate OpenAPI | `.venv/bin/python -m moseby.contracts.export` |
@@ -84,6 +84,22 @@ to `create_app`. The code is organised into [agents](moseby/agents),
 [tools](moseby/tools), [runtime](moseby/runtime), [inference](moseby/inference),
 [services](moseby/services), [HTTP gateway](moseby/gateway),
 [contracts](moseby/contracts) and [database](moseby/db).
+
+### Reading the code
+
+To follow one request from the terminal to the database, read these in order:
+
+1. [`cli.py`](moseby/cli.py) starts a conversation and sends each message to the turn loop.
+2. [`runtime/loop.py`](moseby/runtime/loop.py) saves the request, calls the model and
+   repeats until it answers without tools or reaches a limit.
+3. [`runtime/tool_worker.py`](moseby/runtime/tool_worker.py) claims each tool call,
+   runs it with a timeout and saves its result to the conversation.
+4. [`tools/stays.py`](moseby/tools/stays.py) describes the stay tools to the model and
+   rechecks access before writing.
+5. [`services/stays.py`](moseby/services/stays.py) checks permissions and prices, then
+   applies the change. [`gateway/stays.py`](moseby/gateway/stays.py) calls the same functions over HTTP.
+6. [`db/repositories/bookings.py`](moseby/db/repositories/bookings.py) reads and writes
+   bookings, adding a revision for each change instead of overwriting it.
 
 [Design notes](docs/README.md) follow the thinking in order, including ideas we set aside.
 The [extensions branch](https://github.com/samfolo/Moseby/tree/extensions) keeps

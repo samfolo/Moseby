@@ -1,6 +1,6 @@
 PYTHON ?= .venv/bin/python
 
-.PHONY: format check test-db test-models test-contracts test-inference test-agents test-tools migrate clean-db
+.PHONY: format check test test-db test-models test-contracts test-inference test-agents test-tools migrate clean-db
 
 format:
 	$(PYTHON) -m ruff check --select I --fix .
@@ -9,6 +9,10 @@ format:
 check:
 	$(PYTHON) -m ruff check .
 	$(PYTHON) -m ruff format --check .
+
+# Run every test package; the targets below run one package each.
+test:
+	$(PYTHON) -m unittest discover -s moseby -t .
 
 test-db:
 	$(PYTHON) -m unittest discover -s moseby/db/tests -v
