@@ -96,9 +96,12 @@ def main() -> None:
     conversation.add_argument("--thread", help="Reopen a saved thread ID")
     conversation.add_argument("--message", help="Send one message and exit")
     args = parser.parse_args()
-    engine = create_database_engine(
-        URL.create("sqlite", database=str(Path(args.database).resolve()))
-    )
+    database = Path(args.database).resolve()
+    if args.command == "chat" and not database.is_file():
+        parser.error(
+            "The database does not exist. Run init first, using the same --database path."
+        )
+    engine = create_database_engine(URL.create("sqlite", database=str(database)))
     try:
         if args.command == "init":
             initialize(engine)

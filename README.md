@@ -1,14 +1,18 @@
 # Moseby
 
-A Python concierge agent for resort staff.
+Hotel staff have a lot to keep track of: who is staying, what each guest needs,
+and what everyone has planned. Moseby is an assistant they can talk to while
+organising a guest's stay. It helps with room bookings, activities, itineraries
+and notes, so staff can keep up with several guests and give each one personal
+attention.
 
-An experiment in helping staff turn guest requests into actions they can check.
-The model chooses tools; the application checks permissions and saves the outcomes.
-Staff remain the point of contact with guests.
+A concierge might ask it to find something for a guest to do tomorrow, book their
+chosen activity, or remember a dietary requirement. Staff stay in charge of the
+conversation with the guest and decide how best to help them.
 
-## Start here
+## Try it
 
-Requires Python 3.14 and an OpenRouter API key. Run these from the repository root:
+You'll need Python 3.14 and an OpenRouter API key. From the repository root:
 
 ```sh
 python3.14 -m venv .venv
@@ -16,34 +20,50 @@ python3.14 -m venv .venv
 cp .env.example .env
 ```
 
-Add your key to `.env`. The example uses **DeepSeek V4.1 Flash** for generation and
-**Jev** for classification. Change the model IDs there to choose other models.
-
-Settings come from `OPENROUTER_API_KEY`, `MOSEBY_GENERATION_MODEL` and
-`MOSEBY_CLASSIFICATION_MODEL`. Supply them through your launch environment,
-or load `.env` into your shell. Optional `MOSEBY_REASONING_EFFORT` defaults to `low`;
-`MOSEBY_MAX_OUTPUT_TOKENS` defaults to 4096, shared by reasoning and the visible reply:
+Put your API key in `.env`. That file also lets you choose the models. Load those
+settings into your shell, create the demo hotel, and start a conversation:
 
 ```sh
 set -a
 source .env
 set +a
-```
-
-Initialise the demo data, then open a conversation:
-
-```sh
 .venv/bin/python -m moseby init
 .venv/bin/python -m moseby chat
 ```
 
-Try: “Find Dan Patel and show me activities this afternoon.” Then choose an
-activity, reserve a place, inspect his itinerary and cancel the reservation.
-Use `/exit` to leave. Reopen a conversation with `chat --thread THREAD_ID`,
-or send one message with `chat --message "Show me the rooms"`.
-Run `.venv/bin/python -m moseby --help` for command options.
+The demo comes with made-up guests, rooms and activities. Take the concierge's
+role and try: “Find Dan Patel and show me activities tomorrow afternoon.” Choose
+an activity, ask Moseby to book it, then check Dan's itinerary. You can cancel the
+reservation afterwards. You'll see the names of the tools Moseby uses as it works.
 
-## Development commands
+Use `/exit` to leave. To return to a saved conversation, use `chat --thread THREAD_ID`
+with the ID printed when you started. For a single request, use
+`chat --message "Show me the rooms"`. Use `--help` for other options.
+
+## What to expect
+
+- You use the demo through the terminal as one staff member. There is no login step, and it does not take payments or programme real door locks.
+- Conversations are saved. If the programme stops halfway through a task, it won't automatically pick up where it left off. You also wait for the full reply rather than seeing it appear word by word.
+- When you save a note about a group, we use Jev, a decision model, to work out which guests it mentions. Sometimes it's hard to tell. We still save the note because it's useful even when we can't confidently link it to a person.
+- Times use UTC unless you specify another timezone. Moseby has a limit on how much model work it can do for each message you send; that is not a cap on your API bill.
+
+## Your local setup
+
+The app reads settings from environment variables. The commands above load them
+from `.env`; you can also supply them directly when starting the programme. After
+changing models or other settings, load them again and restart chat. The optional
+reasoning and output settings are listed in `.env.example`.
+
+Your local database is `moseby.db`. Neither it nor `.env` is tracked by Git.
+Running `init` again adds missing demo data and keeps changes you've already made.
+To start over, stop chat, run `make clean-db`, then run `init` again. This deletes
+saved conversations and bookings too.
+
+Use a fresh database when switching from the extensions branch. To choose a different
+database file, put `--database PATH` before `init` or `chat`. If you change what an
+agent is allowed to do, start a new conversation to use those permissions.
+
+## Working on the code
 
 | Task | Command |
 | --- | --- |
@@ -51,22 +71,20 @@ Run `.venv/bin/python -m moseby --help` for command options.
 | Lint and check formatting | `make check` |
 | Run tests | `make test-db test-models test-contracts test-inference test-agents test-tools` |
 | Apply migrations | `make migrate` |
-| Delete the local demo database (stop chat first) | `make clean-db` |
+| Delete the default database (stop chat first) | `make clean-db` |
 | Regenerate OpenAPI | `.venv/bin/python -m moseby.contracts.export` |
 
-## Things to know
+Tests use scripted model replies, so they run without an API key. They check how
+the application behaves; they don't tell us how reliably a live model will handle
+a guest's request.
 
-- `.env` and the default `moseby.db` are ignored by Git. `.env` is loaded by your shell, not automatically by the app. Reload it and restart chat after changing models.
-- Start with a fresh database when switching from the extensions snapshot; the prototype schema is smaller. `init` adds missing demo data and preserves existing rows. To use another database, put `--database PATH` before `init` or `chat`.
-- Each user message starts a new run. Its token budget counts uncached input and all output; cached reads are tracked separately.
-- Threads retain the permissions they were created with. Start a new chat after adding tools that need new permissions.
-- This is a local, single-staff demo. The CLI runs the agent; HTTP routes expose domain operations. Interrupted runs require manual intervention.
-- Dates use UTC unless an explicit timezone is supplied. Local tests use simulated model replies and need no API key.
+Tools and HTTP endpoints call the same services, which check permissions and apply
+changes to the database. To host the HTTP API, supply a database and staff identity
+to `create_app`. The code is organised into [agents](moseby/agents),
+[tools](moseby/tools), [runtime](moseby/runtime), [inference](moseby/inference),
+[services](moseby/services), [HTTP gateway](moseby/gateway),
+[contracts](moseby/contracts) and [database](moseby/db).
 
-## Project layout
-
-- [Agents and prompts](moseby/agents), [tools](moseby/tools), [runtime](moseby/runtime) and [inference](moseby/inference).
-- [HTTP gateway](moseby/gateway), [contracts](moseby/contracts) and [services](moseby/services).
-- [Database migrations, models and repositories](moseby/db).
-- [Design notes](docs) record the project's evolution; the code defines current behaviour.
-- [Extensions snapshot](https://github.com/samfolo/Moseby/tree/extensions) preserves the broader scheduling and notification design.
+[Design notes](docs) contain earlier discussions, including ideas we set aside.
+The [extensions branch](https://github.com/samfolo/Moseby/tree/extensions) keeps
+the broader scheduling and notification work for later reference.

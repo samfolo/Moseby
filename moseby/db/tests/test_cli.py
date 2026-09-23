@@ -3,7 +3,7 @@
 import io
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
@@ -14,6 +14,23 @@ from moseby.inference.models.generation import AssistantMessage
 
 
 class CliTests(unittest.TestCase):
+    def test_chat_without_a_database_explains_how_to_initialise_it(self):
+        """Starting chat before init gives setup instructions without creating a database."""
+        with tempfile.TemporaryDirectory() as directory:
+            database = Path(directory) / "missing.db"
+            errors = io.StringIO()
+            with (
+                patch("sys.argv", ["moseby", "--database", str(database), "chat"]),
+                redirect_stderr(errors),
+                patch("moseby.cli.InferenceSettings.from_environment") as settings,
+                self.assertRaises(SystemExit) as raised,
+            ):
+                main()
+            self.assertEqual(raised.exception.code, 2)
+            self.assertIn("Run init first", errors.getvalue())
+            self.assertFalse(database.exists())
+            settings.assert_not_called()
+
     def test_init_chat_and_resume_keep_the_conversation_and_execute_tools(self):
         """A fresh demo can search rooms, save the reply and reopen the same conversation."""
         settings = InferenceSettings(
