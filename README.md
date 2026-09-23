@@ -85,6 +85,6 @@ to `create_app`. The code is organised into [agents](moseby/agents),
 [services](moseby/services), [HTTP gateway](moseby/gateway),
 [contracts](moseby/contracts) and [database](moseby/db).
 
-[Design notes](docs) contain earlier discussions, including ideas we set aside.
+[Design notes](docs/README.md) follow the thinking in order, including ideas we set aside.
 The [extensions branch](https://github.com/samfolo/Moseby/tree/extensions) keeps
 the broader scheduling and notification work for later reference.
